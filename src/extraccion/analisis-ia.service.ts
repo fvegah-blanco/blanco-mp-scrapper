@@ -116,6 +116,7 @@ export class AnalisisIaService {
 
   /** Analiza un documento y guarda sus contactos. Devuelve cuántos contactos encontró. */
   async analizar(doc: Documento): Promise<number> {
+    const inicio = Date.now();
     try {
       const contenido = await this.armarContenido(doc);
       if (!contenido) {
@@ -123,7 +124,7 @@ export class AnalisisIaService {
         return 0;
       }
       const esHaiku = /claude-haiku-4-5/.test(this.modeloId);
-      const { output } = await generateText({
+      const { output, usage } = await generateText({
         model: this.obtenerModelo(),
         system: SISTEMA,
         messages: [{ role: 'user', content: contenido }],
@@ -135,6 +136,12 @@ export class AnalisisIaService {
         ...(esHaiku ? { providerOptions: { bedrock: { structuredOutputMode: 'outputFormat' } } } : {}),
       });
 
+      const ms = Date.now() - inicio;
+      const entrada = usage.inputTokens ?? 0;
+      const salida = usage.outputTokens ?? 0;
+      const costo = (entrada * (await this.configuracion.get('bedrock.precio_entrada_usd_mtok')) + salida * (await this.configuracion.get('bedrock.precio_salida_usd_mtok'))) / 1_000_000;
+      const paginas = Array.isArray(contenido) ? contenido.filter((p) => p.type === 'image').length : 0;
+
       const regs = await this.contactosDe(doc, output);
       await this.contactos.guardar(regs);
       await this.prisma.documento.update({
@@ -145,15 +152,20 @@ export class AnalisisIaService {
           analisisIaModelo: this.modeloId,
           analisisIaError: null,
           analizadoIaAt: new Date(),
+          analisisIaMs: ms,
+          analisisIaTokensEntrada: entrada,
+          analisisIaTokensSalida: salida,
+          analisisIaCostoUsd: costo.toFixed(6),
+          analisisIaPaginas: paginas,
           ...(output.es_anexo_identificacion ? { esAnexoIdentificacion: true } : {}),
         },
       });
-      this.logger.info({ documento: doc.nombre, proceso: doc.procesoCodigo, contactos: regs.length }, 'Documento analizado con Bedrock');
+      this.logger.info({ documento: doc.nombre, proceso: doc.procesoCodigo, contactos: regs.length, ms, entrada, salida, costoUsd: costo }, 'Documento analizado con Bedrock');
       return regs.length;
     } catch (error) {
       await this.prisma.documento.update({
         where: { id: doc.id },
-        data: { analisisIaEstado: 'ERROR', analisisIaError: getErrorMessage(error).slice(0, 1000), analizadoIaAt: new Date() },
+        data: { analisisIaEstado: 'ERROR', analisisIaError: getErrorMessage(error).slice(0, 1000), analizadoIaAt: new Date(), analisisIaMs: Date.now() - inicio },
       });
       this.logger.warn({ documento: doc.nombre, error: getErrorMessage(error) }, 'Falló el análisis con Bedrock');
       throw error;

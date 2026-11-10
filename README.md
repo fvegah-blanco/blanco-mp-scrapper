@@ -37,6 +37,10 @@ Idea tomada de `sii_situacion_tributaria` (Seba): **el contacto del vendedor est
 - **Medido**: los 5 Anexos N°1 de ejemplo de Seba (formatos distintos) dieron 5 de 5 con el RUT correcto y 2–4 contactos cada uno, ~3 s por documento. Anexo N°1 real de `799512-11-LE26`: representante, cargo, correo y teléfono del adjudicado.
 - **Baneo**: el portal de licitaciones banea por IP pasado cierto volumen. Hay `adjuntos.pausa_ms` entre requests y un 403 corta la corrida (se retoma en la siguiente). Como aquí solo se bajan los adjudicados en tiempo real (no los ~10 mil proveedores de una vez), no debería hacer falta proxy; si se hace un barrido histórico, sí.
 
+## Gasto y tiempos de la IA
+
+Cada documento que pasa por Bedrock guarda tokens de entrada y salida, páginas enviadas como imagen, tiempo de la llamada y costo (`tokens × bedrock.precio_*_usd_mtok`); la extracción de texto/OCR guarda su propio tiempo. La vista **Gasto IA** del panel muestra el total del período, costo y tiempo por documento (mediana y p95), costo por contacto encontrado, gasto por día y el detalle de cada documento. El precio por defecto es el de Haiku 4.5 en la API de Anthropic (US$ 1 / US$ 5 por millón); Bedrock publica su propia tabla, así que la cifra oficial es la factura de AWS. Medido el 10-11: ~US$ 0,006–0,010 y 3–5 s por documento.
+
 ## Modelo de datos
 
 | Tabla | Qué guarda |
@@ -88,7 +92,7 @@ curl -X POST localhost:4500/api/datos-abiertos/importar-local \
 - `POST /tiempo-real/ordenes/:codigo/cruzar`
 - `POST /documentos/encolar` · `POST /documentos/procesos/:codigo/descargar` · `POST /documentos/:id/extraer` · `POST /documentos/:id/analizar-ia` · `POST /documentos/procesos/:codigo/reanalizar`
 - `POST /tiempo-real/compras-agiles/:codigo/ficha`
-- `GET /consultas/resumen` · `GET /consultas/adjudicaciones` · `GET /consultas/empresas/:rut` · `GET /consultas/procesos/:codigo` · `GET /consultas/contactos`
+- `GET /consultas/ia?dias=30` (gasto y tiempos de la IA) · `GET /consultas/resumen` · `GET /consultas/adjudicaciones` · `GET /consultas/empresas/:rut` · `GET /consultas/procesos/:codigo` · `GET /consultas/contactos`
 
 ## Parámetros vivos (los principales)
 

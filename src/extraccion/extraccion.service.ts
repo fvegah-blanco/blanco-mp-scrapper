@@ -71,9 +71,11 @@ export class ExtraccionService {
     if (!d.rutaAlmacen) throw new Error('Documento sin archivo');
     const ocrMaxPaginas = await this.configuracion.get('extraccion.ocr_max_paginas');
     const maxChars = await this.configuracion.get('extraccion.texto_max_chars');
+    const inicio = Date.now();
     try {
       const contenido = await this.storage.leer(d.rutaAlmacen);
       const r = await this.texto.extraer(contenido, d.nombre, { ocrMaxPaginas, maxChars });
+      const extraccionMs = Date.now() - inicio;
       // Los documentos del oferente van a Bedrock: ahí está el contacto del vendedor y el formato varía demasiado para el regex.
       const aIa = d.origen !== 'BASES' && (await this.configuracion.get('bedrock.habilitado'));
       await this.prisma.documento.update({
@@ -83,6 +85,7 @@ export class ExtraccionService {
           metodoExtraccion: r.metodo,
           extraccionEstado: r.texto ? 'OK' : 'SIN_TEXTO',
           extraidoAt: new Date(),
+          extraccionMs,
           esAnexoIdentificacion: esAnexoIdentificacion(d.nombre, r.texto),
           analisisIaEstado: aIa ? 'PENDIENTE' : 'NO_APLICA',
         },

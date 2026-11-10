@@ -108,6 +108,18 @@ export const PARAMETROS = {
     valor: 4,
     descripcion: 'Páginas de cada PDF que se mandan como imagen al modelo (el Anexo N°1 rara vez pasa de 2).',
   },
+  'bedrock.precio_entrada_usd_mtok': {
+    valor: 1,
+    descripcion: 'USD por millón de tokens de entrada del modelo (Haiku 4.5: 1). Confirmar contra la tabla de Bedrock: es el que usa el costo por documento.',
+  },
+  'bedrock.precio_salida_usd_mtok': {
+    valor: 5,
+    descripcion: 'USD por millón de tokens de salida del modelo (Haiku 4.5: 5).',
+  },
+  'ia.dolar_clp': {
+    valor: 950,
+    descripcion: 'Pesos por dólar para mostrar el gasto en CLP (referencial).',
+  },
   'extraccion.lote': {
     valor: 15,
     descripcion: 'Documentos que se pasan por texto/OCR por corrida.',

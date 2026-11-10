@@ -3,6 +3,7 @@ import { ApiHeader, ApiTags } from '@nestjs/swagger';
 import { Prisma, type RolContacto } from '@prisma/client';
 import { AdminKeyGuard } from '../common/admin-key.guard';
 import { normalizarRut } from '../common/rut';
+import { ConfiguracionService } from '../configuracion/configuracion.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 /** Lectura de lo ingerido: resumen, adjudicaciones, fichas de empresa y proceso, contactos. */
@@ -11,7 +12,66 @@ import { PrismaService } from '../prisma/prisma.service';
 @UseGuards(AdminKeyGuard)
 @Controller('consultas')
 export class ConsultasController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly configuracion: ConfiguracionService,
+  ) {}
+
+  /**
+   * Gasto y tiempos de la IA: totales y percentiles del período, gasto por día y
+   * el detalle de cada documento (extracción + Bedrock, tokens, costo, contactos).
+   */
+  @Get('ia')
+  async ia(@Query('dias', new DefaultValuePipe(30), ParseIntPipe) dias: number) {
+    const desde = new Date(Date.now() - Math.min(365, Math.max(1, dias)) * 86_400_000);
+    const [totales] = await this.prisma.$queryRaw<Array<Record<string, unknown>>>`
+      SELECT
+        count(*) FILTER (WHERE analisis_ia_estado = 'OK')::int AS analizados,
+        count(*) FILTER (WHERE analisis_ia_estado = 'ERROR')::int AS con_error,
+        coalesce(sum(analisis_ia_costo_usd), 0)::float AS costo_usd,
+        coalesce(sum(analisis_ia_tokens_entrada), 0)::int AS tokens_entrada,
+        coalesce(sum(analisis_ia_tokens_salida), 0)::int AS tokens_salida,
+        avg(analisis_ia_costo_usd) FILTER (WHERE analisis_ia_estado = 'OK')::float AS costo_promedio_usd,
+        avg(analisis_ia_ms) FILTER (WHERE analisis_ia_estado = 'OK')::float AS ia_ms_promedio,
+        percentile_cont(0.5) WITHIN GROUP (ORDER BY analisis_ia_ms) FILTER (WHERE analisis_ia_estado = 'OK')::float AS ia_ms_p50,
+        percentile_cont(0.95) WITHIN GROUP (ORDER BY analisis_ia_ms) FILTER (WHERE analisis_ia_estado = 'OK')::float AS ia_ms_p95,
+        avg(extraccion_ms)::float AS extraccion_ms_promedio
+      FROM documentos WHERE analizado_ia_at >= ${desde}`;
+    const [contactos] = await this.prisma.$queryRaw<Array<{ n: number }>>`
+      SELECT count(*)::int AS n FROM contactos WHERE fuente = 'DOCUMENTO_IA' AND created_at >= ${desde}`;
+    const pendientes = await this.prisma.documento.count({ where: { analisisIaEstado: 'PENDIENTE' } });
+    const porDia = await this.prisma.$queryRaw<unknown[]>`
+      SELECT to_char(date_trunc('day', analizado_ia_at AT TIME ZONE 'America/Santiago'), 'YYYY-MM-DD') AS dia,
+        count(*) FILTER (WHERE analisis_ia_estado = 'OK')::int AS analizados,
+        count(*) FILTER (WHERE analisis_ia_estado = 'ERROR')::int AS con_error,
+        coalesce(sum(analisis_ia_costo_usd), 0)::float AS costo_usd,
+        avg(analisis_ia_ms) FILTER (WHERE analisis_ia_estado = 'OK')::float AS ia_ms_promedio
+      FROM documentos WHERE analizado_ia_at >= ${desde}
+      GROUP BY 1 ORDER BY 1 DESC`;
+    const documentos = await this.prisma.$queryRaw<unknown[]>`
+      SELECT d.id, d.nombre, d.proceso_codigo, d.origen, d.metodo_extraccion, d.es_anexo_identificacion,
+        d.analisis_ia_estado, d.analisis_ia_modelo, d.analisis_ia_error, d.analizado_ia_at,
+        d.extraccion_ms, d.analisis_ia_ms, d.analisis_ia_paginas, d.analisis_ia_tokens_entrada, d.analisis_ia_tokens_salida,
+        d.analisis_ia_costo_usd::float AS costo_usd,
+        (SELECT count(*)::int FROM contactos c WHERE c.documento_id = d.id AND c.fuente = 'DOCUMENTO_IA') AS contactos
+      FROM documentos d WHERE d.analizado_ia_at >= ${desde}
+      ORDER BY d.analizado_ia_at DESC LIMIT 200`;
+    return {
+      success: true,
+      data: {
+        dias,
+        totales: { ...totales, contactos: contactos.n, pendientes },
+        precio: {
+          entradaUsdMtok: await this.configuracion.get('bedrock.precio_entrada_usd_mtok'),
+          salidaUsdMtok: await this.configuracion.get('bedrock.precio_salida_usd_mtok'),
+          dolarClp: await this.configuracion.get('ia.dolar_clp'),
+          modelo: process.env.BEDROCK_MODEL ?? 'us.anthropic.claude-haiku-4-5-20251001-v1:0',
+        },
+        porDia,
+        documentos,
+      },
+    };
+  }
 
   @Get('resumen')
   async resumen() {

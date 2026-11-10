@@ -326,11 +326,21 @@ model Documento {
   /// Texto extraído (truncado a TEXTO_MAX_CHARS).
   texto             String?
   extraidoAt        DateTime?        @map("extraido_at") @db.Timestamptz(6)
+  /// Unidad: ms. Lo que tomó sacar el texto (incluye OCR si fue escaneado).
+  extraccionMs      Int?             @map("extraccion_ms")
   analisisIaEstado  EstadoAnalisisIa @default(NO_APLICA) @map("analisis_ia_estado")
   /// Respuesta estructurada del modelo (razón social, RUT, contactos).
   analisisIa        Json?            @map("analisis_ia") @db.JsonB
   analisisIaModelo  String?          @map("analisis_ia_modelo")
   analisisIaError   String?          @map("analisis_ia_error")
+  /// Unidad: ms. Lo que tomó la llamada a Bedrock (incluye rasterizar las páginas).
+  analisisIaMs      Int?             @map("analisis_ia_ms")
+  analisisIaTokensEntrada Int?       @map("analisis_ia_tokens_entrada")
+  analisisIaTokensSalida  Int?       @map("analisis_ia_tokens_salida")
+  /// Unidad: USD. Tokens × precio vigente del parámetro al momento del análisis.
+  analisisIaCostoUsd Decimal?        @map("analisis_ia_costo_usd") @db.Decimal(12, 6)
+  /// Páginas enviadas como imagen al modelo.
+  analisisIaPaginas Int?             @map("analisis_ia_paginas")
   analizadoIaAt     DateTime?        @map("analizado_ia_at") @db.Timestamptz(6)
   createdAt         DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt         DateTime         @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)

@@ -194,6 +194,7 @@
   <symbol id="i-history" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></symbol>
   <symbol id="i-pencil" viewBox="0 0 24 24"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/></symbol>
   <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></symbol>
+ <symbol id="i-coins" viewBox="0 0 24 24"><circle cx="8" cy="8" r="6"/><path d="M18.09 10.37A6 6 0 1 1 10.34 18"/><path d="M7 6h1v4"/><path d="m16.71 13.88.7.71-2.82 2.82"/></symbol>
   <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></symbol>
 </svg>
 
@@ -209,6 +210,7 @@
   <nav id="menu">
     <div class="sb-seccion"><span class="fade">Monitoreo</span></div>
     <a class="sb-item" href="#/resumen" data-ruta="resumen" title="Resumen"><svg class="i"><use href="#i-dashboard"/></svg><span class="fade">Resumen</span></a>
+    <a class="sb-item" href="#/gasto-ia" data-ruta="gasto-ia" title="Gasto IA"><svg class="i"><use href="#i-coins"/></svg><span class="fade">Gasto IA</span></a>
     <div class="sb-seccion"><span class="fade">Resultados</span></div>
     <a class="sb-item" href="#/adjudicaciones" data-ruta="adjudicaciones" title="Adjudicaciones"><svg class="i"><use href="#i-award"/></svg><span class="fade">Adjudicaciones</span></a>
     <a class="sb-item" href="#/contactos" data-ruta="contactos" title="Contactos"><svg class="i"><use href="#i-users"/></svg><span class="fade">Contactos</span></a>
@@ -315,6 +317,48 @@
         ['Última OC en tiempo real', data.ultimaOcTiempoReal ? esc(data.ultimaOcTiempoReal.codigo) : '—', data.ultimaOcTiempoReal ? fecha(data.ultimaOcTiempoReal.fechaEnvio) : 'El poll aún no corre'],
       ];
       $('#kpis').innerHTML = kpis.map(([k, v, d]) => `<div class="kpi"><div class="k">${esc(k)}</div><div class="v">${v}</div><div class="d">${esc(d)}</div></div>`).join('');
+    },
+
+    async 'gasto-ia'(p) {
+      const dias = leer('gasto_dias') || '30';
+      p.innerHTML = encabezado({ titulo: 'Gasto IA', descripcion: 'Costo y tiempo de cada documento leído con Bedrock (Anexo N°1 y cotizaciones).', icono: 'coins', acciones: `
+        <select class="campo" id="fDias" aria-label="Período">${[['7', 'Últimos 7 días'], ['30', 'Últimos 30 días'], ['90', 'Últimos 90 días']].map(([v, t]) => `<option value="${v}" ${v === dias ? 'selected' : ''}>${t}</option>`).join('')}</select>
+        <button class="btn" data-recargar>${icono('refresh')}Recargar</button>` }) + `
+        <div class="kpis" id="kpisIa"></div>
+        <p class="sub" id="precioIa" style="margin:8px 0 20px"></p>
+        <h2 style="font-size:16px;font-weight:600;margin:0 0 8px">Por día</h2>
+        <div class="tabla" style="margin-bottom:20px"><table style="min-width:520px"><thead><tr><th>Día</th><th class="num">Documentos</th><th class="num">Con error</th><th class="num">Gasto</th><th class="num">Tiempo IA promedio</th></tr></thead><tbody id="tDia"></tbody></table></div>
+        <h2 style="font-size:16px;font-weight:600;margin:0 0 8px">Por documento</h2>
+        <div class="tabla"><table><thead><tr><th>Documento</th><th>Estado</th><th class="num">Extracción</th><th class="num">Bedrock</th><th class="num">Págs.</th><th class="num">Tokens (ent. / sal.)</th><th class="num">Costo</th><th class="num">Contactos</th></tr></thead><tbody id="tDocIa"></tbody></table></div>`;
+      $('#fDias').onchange = (e) => { guardar('gasto_dias', e.target.value); render(); };
+      const { data } = await api('/consultas/ia?dias=' + dias);
+      const t = data.totales;
+      const usd = (v, dec = 2) => v == null ? '—' : 'US$ ' + Number(v).toLocaleString('es-CL', { minimumFractionDigits: dec, maximumFractionDigits: dec });
+      const clp = (v) => v == null ? '' : '≈ $ ' + num(v * data.precio.dolarClp) + ' CLP';
+      const seg = (ms) => ms == null ? '—' : ms < 1000 ? Math.round(ms) + ' ms' : (ms / 1000).toLocaleString('es-CL', { maximumFractionDigits: 1 }) + ' s';
+      const kpis = [
+        ['Gasto del período', usd(t.costo_usd, 4), clp(t.costo_usd)],
+        ['Documentos analizados', num(t.analizados), `Con error: ${num(t.con_error)} · En cola: ${num(t.pendientes)}`],
+        ['Costo por documento', usd(t.costo_promedio_usd, 4), t.costo_promedio_usd ? `${num(1 / t.costo_promedio_usd)} documentos por US$ 1` : 'Sin análisis aún'],
+        ['Tiempo Bedrock por documento', seg(t.ia_ms_promedio), `Mediana ${seg(t.ia_ms_p50)} · p95 ${seg(t.ia_ms_p95)}`],
+        ['Extracción de texto / OCR', seg(t.extraccion_ms_promedio), 'Promedio por documento, antes de Bedrock'],
+        ['Contactos encontrados por IA', num(t.contactos), t.contactos && t.costo_usd ? `${usd(t.costo_usd / t.contactos, 4)} por contacto` : '—'],
+        ['Tokens', `${num(t.tokens_entrada)} / ${num(t.tokens_salida)}`, 'Entrada (texto + páginas como imagen) / salida'],
+      ];
+      $('#kpisIa').innerHTML = kpis.map(([k, v, d]) => `<div class="kpi"><div class="k">${esc(k)}</div><div class="v">${esc(v)}</div><div class="d">${esc(d)}</div></div>`).join('');
+      $('#precioIa').textContent = `Costo calculado con ${data.precio.modelo}: US$ ${data.precio.entradaUsdMtok} por millón de tokens de entrada y US$ ${data.precio.salidaUsdMtok} de salida (se cambia en Parámetros). Es una estimación; la cifra oficial es la factura de AWS.`;
+      $('#tDia').innerHTML = data.porDia.map((d) => `<tr><td class="nowrap">${esc(d.dia)}</td><td class="num">${num(d.analizados)}</td><td class="num">${num(d.con_error)}</td><td class="num">${usd(d.costo_usd, 4)}</td><td class="num">${seg(d.ia_ms_promedio)}</td></tr>`).join('') || '<tr><td colspan="5" class="vacio">Sin análisis en el período</td></tr>';
+      const estado = { OK: ['ok', 'Analizado'], ERROR: ['err', 'Error'], PENDIENTE: ['info', 'En cola'], NO_APLICA: ['neutro', 'No aplica'] };
+      const origen = { OFERTA: 'Anexo del oferente', COTIZACION: 'Cotización', BASES: 'Bases' };
+      $('#tDocIa').innerHTML = data.documentos.map((d) => `<tr>
+        <td>${esc(d.nombre)}<span class="sub">${esc(d.proceso_codigo)} · ${esc(origen[d.origen] || d.origen)}${d.es_anexo_identificacion ? ' · Anexo N°1' : ''}${d.metodo_extraccion === 'OCR' ? ' · OCR' : ''}</span></td>
+        <td>${badge(...(estado[d.analisis_ia_estado] || ['neutro', d.analisis_ia_estado]))}${d.analisis_ia_error ? `<span class="sub" title="${esc(d.analisis_ia_error)}">${esc(d.analisis_ia_error.slice(0, 40))}</span>` : ''}</td>
+        <td class="num">${seg(d.extraccion_ms)}</td>
+        <td class="num">${seg(d.analisis_ia_ms)}</td>
+        <td class="num">${num(d.analisis_ia_paginas)}</td>
+        <td class="num">${num(d.analisis_ia_tokens_entrada)} / ${num(d.analisis_ia_tokens_salida)}</td>
+        <td class="num">${usd(d.costo_usd, 4)}</td>
+        <td class="num">${num(d.contactos)}</td></tr>`).join('') || '<tr><td colspan="8" class="vacio">Sin documentos analizados en el período</td></tr>';
     },
 
     async adjudicaciones(p) {
