@@ -394,8 +394,17 @@
           <select id="fConf" aria-label="Confianza mínima"><option value="">Cualquier confianza</option><option value="0.7">70% o más</option><option value="0.9">90% o más</option></select>
           <button class="btn primario" id="fBuscar">${icono('search')}Buscar</button>
         </div>
-        <div class="tabla"><table><thead><tr><th>RUT</th><th>Rol</th><th>Nombre / cargo</th><th>Correo</th><th>Teléfono</th><th>Fuente</th><th class="num">Confianza</th></tr></thead><tbody id="tCont"></tbody></table></div>`;
+        <div class="tabla"><table><thead><tr><th>RUT</th><th>Rol</th><th>Nombre / cargo</th><th>Correo</th><th>Teléfono</th><th>Fuente y origen</th><th class="num">Confianza</th></tr></thead><tbody id="tCont"></tbody></table></div>`;
       const rol = { COMPRADOR: ['info', 'Comprador'], PROVEEDOR: ['ok', 'Proveedor'], DESCONOCIDO: ['neutro', 'Sin rol'] };
+      // Dónde verificar el dato: la ficha pública de la OC o el proceso del documento (con su nombre).
+      const origenContacto = (c) => {
+        const o = c.origen;
+        if (!o) return `<span class="sub" title="${esc(c.evidencia)}">${esc((c.evidencia || '').slice(0, 60))}</span>`;
+        const enlace = o.link ? `<a class="nowrap" href="${esc(o.link)}" target="_blank" rel="noopener">${esc(o.codigo)}</a>` : esc(o.codigo);
+        if (o.tipo === 'OC') return `<span class="sub nowrap">OC ${enlace}</span>`;
+        const queDoc = { OFERTA: 'anexo del oferente', COTIZACION: 'cotización', BASES: 'bases' }[o.documentoOrigen] || 'documento';
+        return `<span class="sub">${esc(o.documento)} (${queDoc}) · ${enlace}</span>`;
+      };
       const fuente = { FICHA_OC: 'Ficha OC', FICHA_LICITACION: 'Ficha licitación', DOCUMENTO: 'Documento', DOCUMENTO_IA: 'Documento (IA)' };
       const cargar = async () => {
         const qs = new URLSearchParams({ limit: '100' });
@@ -408,7 +417,7 @@
           <td>${esc(c.nombre || '—')}<span class="sub">${esc(c.cargo || '')}</span></td>
           <td>${c.email ? `<a href="mailto:${esc(c.email)}">${esc(c.email)}</a>` : '—'}</td>
           <td class="nowrap">${esc(c.telefono || '—')}</td>
-          <td>${esc(fuente[c.fuente] || c.fuente)}<span class="sub" title="${esc(c.evidencia)}">${esc((c.evidencia || '').slice(0, 60))}</span></td>
+          <td>${esc(fuente[c.fuente] || c.fuente)}${origenContacto(c)}</td>
           <td class="num">${Math.round(c.confianza * 100)}%</td></tr>`).join('') || '<tr><td colspan="7" class="vacio">Sin contactos todavía</td></tr>';
       };
       $('#fBuscar').onclick = () => cargar().catch((e) => avisar(e.message, true));

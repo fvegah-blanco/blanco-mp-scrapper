@@ -23,9 +23,16 @@ export function normalizarTelefono(valor: string | null | undefined): string | n
   if (!valor) return null;
   let d = valor.replace(/\D/g, '');
   if (d.startsWith('0056')) d = d.slice(2);
+  // Fijo de Santiago en formato antiguo (2 + 7 dígitos, antes de 2013): hoy lleva un 2 más.
+  if (d.length === 8 && d.startsWith('2')) d = `562${d}`;
+  if (d.length === 10 && d.startsWith('562') && !d.startsWith('5622')) d = `5622${d.slice(3)}`;
   if (d.length === 9 && /^[2-9]/.test(d)) d = `56${d}`;
   if (!/^56\d{9}$/.test(d)) return null;
   return `+${d}`;
+}
+
+export function claveContacto(rut: string | null, rol: string, email: string | null, telefono: string | null): string {
+  return `${rut ?? ''}|${rol}|${email ? email : `tel:${telefono ?? ''}`}`;
 }
 
 export function normalizarEmail(valor: string | null | undefined): string | null {
@@ -44,9 +51,12 @@ export class ContactosRepository {
       const email = normalizarEmail(r.email);
       const telefono = normalizarTelefono(r.telefono);
       if (!email && !telefono) continue;
-      const clave = `${r.rut ?? ''}|${r.rol}|${email ?? ''}|${telefono ?? ''}`;
+      // La persona se identifica por su correo (o su teléfono si no hay correo): así un dato que
+      // llega más completo después (con teléfono) completa la fila en vez de duplicarla.
+      const clave = claveContacto(r.rut, r.rol, email, telefono);
+      const limpiar = (v?: string | null) => v?.replace(/\s+/g, ' ').trim().slice(0, 200) || null;
       filas.set(clave, [
-        clave, r.rut, r.rol, r.nombre?.slice(0, 200) ?? null, r.cargo?.slice(0, 200) ?? null, email, telefono, r.fuente,
+        clave, r.rut, r.rol, limpiar(r.nombre), limpiar(r.cargo), email, telefono, r.fuente,
         r.procesoCodigo ?? null, r.ordenCompraId ?? null, r.documentoId ?? null, r.evidencia?.slice(0, 500) ?? null, r.confianza,
       ]);
     }
@@ -60,6 +70,7 @@ export class ContactosRepository {
         conflicto: ['clave'],
         actualizar: {
           nombre: `COALESCE("${t}"."nombre", EXCLUDED."nombre")`,
+          telefono: `COALESCE("${t}"."telefono", EXCLUDED."telefono")`,
           cargo: `COALESCE("${t}"."cargo", EXCLUDED."cargo")`,
           confianza: `GREATEST("${t}"."confianza", EXCLUDED."confianza")`,
           // Si la IA confirma un dato que ya vio el regex, queda como fuente la IA (más completa).
@@ -67,7 +78,7 @@ export class ContactosRepository {
           veces_visto: `"${t}"."veces_visto" + 1`,
           ultima_vez_visto: 'now()',
         },
-        noActualizar: ['rut', 'rol', 'email', 'telefono', 'proceso_codigo', 'orden_compra_id', 'documento_id', 'evidencia'],
+        noActualizar: ['rut', 'rol', 'email', 'proceso_codigo', 'orden_compra_id', 'documento_id', 'evidencia'],
       },
       [...filas.values()],
     );

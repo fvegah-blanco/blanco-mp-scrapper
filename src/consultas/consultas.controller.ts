@@ -160,10 +160,31 @@ export class ConsultasController {
       ...(normalizarRut(rut) ? { rut: normalizarRut(rut) } : {}),
       ...(minConfianza ? { confianza: { gte: Number(minConfianza) } } : {}),
     };
-    const [data, total] = await Promise.all([
+    const [contactos, total] = await Promise.all([
       this.prisma.contacto.findMany({ where, orderBy: { ultimaVezVisto: 'desc' }, skip: (Math.max(1, page) - 1) * lim, take: lim }),
       this.prisma.contacto.count({ where }),
     ]);
+    // Origen verificable de cada contacto: la OC (ficha pública) o el documento y su proceso.
+    const ocIds = [...new Set(contactos.map((c) => c.ordenCompraId).filter((x): x is bigint => x !== null))];
+    const docIds = [...new Set(contactos.map((c) => c.documentoId).filter((x): x is string => x !== null))];
+    const [ocs, docs] = await Promise.all([
+      this.prisma.ordenCompra.findMany({ where: { id: { in: ocIds } }, select: { id: true, codigo: true, link: true } }),
+      this.prisma.documento.findMany({ where: { id: { in: docIds } }, select: { id: true, nombre: true, origen: true, procesoCodigo: true, proceso: { select: { link: true } } } }),
+    ]);
+    const ocPorId = new Map(ocs.map((o) => [o.id.toString(), o]));
+    const docPorId = new Map(docs.map((d) => [d.id, d]));
+    const data = contactos.map((c) => {
+      const oc = c.ordenCompraId ? ocPorId.get(c.ordenCompraId.toString()) : undefined;
+      const doc = c.documentoId ? docPorId.get(c.documentoId) : undefined;
+      return {
+        ...c,
+        origen: oc
+          ? { tipo: 'OC', codigo: oc.codigo, link: oc.link }
+          : doc
+            ? { tipo: 'DOCUMENTO', codigo: doc.procesoCodigo, link: doc.proceso.link, documento: doc.nombre, documentoOrigen: doc.origen }
+            : null,
+      };
+    });
     return { success: true, data, total, page, limit: lim };
   }
 }

@@ -1,7 +1,7 @@
 import { codigoCompraAgilEnTexto } from '../src/common/codigos';
 import { decimal, fecha, hoyChile, texto } from '../src/common/parse';
 import { normalizarRut, rutValido } from '../src/common/rut';
-import { normalizarEmail, normalizarTelefono } from '../src/ingesta/contactos.repository';
+import { claveContacto, normalizarEmail, normalizarTelefono } from '../src/ingesta/contactos.repository';
 import { tipoDesdeCodigo } from '../src/ingesta/tipos';
 import { decodificarRfc2047 } from '../src/mercado-publico/adjuntos.client';
 import { palabrasClave, prefijoUnidad, tipoOcDesdeCodigo } from '../src/tiempo-real/palabras';
@@ -67,7 +67,13 @@ describe('contacto', () => {
     expect(normalizarTelefono('56-2-25767296')).toBe('+56225767296');
     expect(normalizarTelefono('+56 9 8765 4321')).toBe('+56987654321');
     expect(normalizarTelefono('(2) 2576 7296')).toBe('+56225767296');
+    expect(normalizarTelefono('23525671')).toBe('+56223525671');
+    expect(normalizarTelefono('56-2-3525671')).toBe('+56223525671');
     expect(normalizarTelefono('12345')).toBeNull();
+  });
+  it('la misma persona con y sin teléfono tiene la misma clave', () => {
+    expect(claveContacto('1-9', 'PROVEEDOR', 'a@b.cl', null)).toBe(claveContacto('1-9', 'PROVEEDOR', 'a@b.cl', '+56912345678'));
+    expect(claveContacto('1-9', 'PROVEEDOR', null, '+56912345678')).toBe('1-9|PROVEEDOR|tel:+56912345678');
   });
   it('normaliza correos', () => {
     expect(normalizarEmail(' Hector.Villar@HospitalLaFlorida.cl ')).toBe('hector.villar@hospitallaflorida.cl');
