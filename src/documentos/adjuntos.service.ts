@@ -5,6 +5,7 @@ import { getErrorMessage } from '../common/errores';
 import { ConfiguracionService } from '../configuracion/configuracion.service';
 import { IngestaRepository } from '../ingesta/ingesta.repository';
 import { type AdjuntoRemoto, AdjuntosClient } from '../mercado-publico/adjuntos.client';
+import { BuscadorClient } from '../mercado-publico/buscador.client';
 import { OfertasClient, PortalBloqueadoError } from '../mercado-publico/ofertas.client';
 import { PrismaService } from '../prisma/prisma.service';
 import { MatchCompraAgilService } from '../tiempo-real/match-compra-agil.service';
@@ -30,6 +31,7 @@ export class AdjuntosService {
     private readonly configuracion: ConfiguracionService,
     private readonly ingesta: IngestaRepository,
     private readonly compraAgil: MatchCompraAgilService,
+    private readonly buscador: BuscadorClient,
   ) {}
 
   async encolar(codigos: string[], forzar = false): Promise<number> {
@@ -148,18 +150,27 @@ export class AdjuntosService {
    * la cotización ganadora (compra ágil).
    */
   private async documentosDeAdjudicados(codigo: string) {
-    const proceso = await this.prisma.proceso.findUnique({ where: { codigo }, select: { tipo: true, detalleRevisadoAt: true } });
+    const proceso = await this.prisma.proceso.findUnique({ where: { codigo }, select: { tipo: true } });
     const adjudicados = await this.prisma.adjudicacion.findMany({ where: { procesoCodigo: codigo }, select: { proveedorRut: true }, distinct: ['proveedorRut'] });
     const out: Array<AdjuntoRemoto & { origen: 'OFERTA' | 'COTIZACION'; proveedorRut: string }> = [];
 
     if (proceso?.tipo === 'COMPRA_AGIL') {
       // Las cotizaciones (y su id_cotizacion) vienen de la ficha. Una compra ágil cruzada por el
-      // COT del nombre de la OC puede llegar aquí sin ficha leída: sin esto solo bajarían las bases.
-      if (!proceso.detalleRevisadoAt) await this.compraAgil.leerFichasPendientes([codigo]);
-      const cotizaciones = await this.prisma.oferta.findMany({
-        where: { procesoCodigo: codigo, idExterno: { not: null }, OR: [{ seleccionada: true }, { proveedorRut: { in: adjudicados.map((a) => a.proveedorRut) } }] },
-        select: { proveedorRut: true, idExterno: true },
-      });
+      // COT del nombre de la OC puede llegar sin ficha leída, o leída antes de guardar el id: sin
+      // esto solo bajarían las bases.
+      const buscarCotizaciones = () =>
+        this.prisma.oferta.findMany({
+          where: { procesoCodigo: codigo, idExterno: { not: null }, OR: [{ seleccionada: true }, { proveedorRut: { in: adjudicados.map((a) => a.proveedorRut) } }] },
+          select: { proveedorRut: true, idExterno: true },
+        });
+      let cotizaciones = await buscarCotizaciones();
+      if (!cotizaciones.length) {
+        const ficha = await this.buscador.fichaCompraAgil(codigo);
+        if (ficha) {
+          await this.compraAgil.guardarCompraAgil(ficha);
+          cotizaciones = await buscarCotizaciones();
+        }
+      }
       for (const c of cotizaciones) {
         for (const a of await this.cliente.listarCotizacion(c.idExterno!, c.proveedorRut)) out.push({ ...a, origen: 'COTIZACION', proveedorRut: c.proveedorRut });
       }
