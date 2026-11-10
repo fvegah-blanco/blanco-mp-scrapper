@@ -7,10 +7,11 @@ import { AnalisisIaService } from '../extraccion/analisis-ia.service';
 import { ExtraccionService } from '../extraccion/extraccion.service';
 import { OcrService } from '../extraccion/ocr.service';
 import { TextoService } from '../extraccion/texto.service';
+import { MatchCompraAgilService } from '../tiempo-real/match-compra-agil.service';
 
 @Module({
   controllers: [DocumentosController],
-  providers: [StorageService, AdjuntosService, OcrService, TextoService, ExtraccionService, AnalisisIaService, DocumentosCron, ContactosExtraccionCron, AnalisisIaCron],
-  exports: [AdjuntosService, OcrService, ExtraccionService],
+  providers: [StorageService, MatchCompraAgilService, AdjuntosService, OcrService, TextoService, ExtraccionService, AnalisisIaService, DocumentosCron, ContactosExtraccionCron, AnalisisIaCron],
+  exports: [AdjuntosService, OcrService, ExtraccionService, MatchCompraAgilService],
 })
 export class DocumentosModule {}

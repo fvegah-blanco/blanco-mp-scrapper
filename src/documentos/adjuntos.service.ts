@@ -7,6 +7,7 @@ import { IngestaRepository } from '../ingesta/ingesta.repository';
 import { type AdjuntoRemoto, AdjuntosClient } from '../mercado-publico/adjuntos.client';
 import { OfertasClient, PortalBloqueadoError } from '../mercado-publico/ofertas.client';
 import { PrismaService } from '../prisma/prisma.service';
+import { MatchCompraAgilService } from '../tiempo-real/match-compra-agil.service';
 import { StorageService } from './storage.service';
 
 function nombreSeguro(nombre: string): string {
@@ -28,6 +29,7 @@ export class AdjuntosService {
     private readonly storage: StorageService,
     private readonly configuracion: ConfiguracionService,
     private readonly ingesta: IngestaRepository,
+    private readonly compraAgil: MatchCompraAgilService,
   ) {}
 
   async encolar(codigos: string[], forzar = false): Promise<number> {
@@ -146,11 +148,14 @@ export class AdjuntosService {
    * la cotización ganadora (compra ágil).
    */
   private async documentosDeAdjudicados(codigo: string) {
-    const proceso = await this.prisma.proceso.findUnique({ where: { codigo }, select: { tipo: true } });
+    const proceso = await this.prisma.proceso.findUnique({ where: { codigo }, select: { tipo: true, detalleRevisadoAt: true } });
     const adjudicados = await this.prisma.adjudicacion.findMany({ where: { procesoCodigo: codigo }, select: { proveedorRut: true }, distinct: ['proveedorRut'] });
     const out: Array<AdjuntoRemoto & { origen: 'OFERTA' | 'COTIZACION'; proveedorRut: string }> = [];
 
     if (proceso?.tipo === 'COMPRA_AGIL') {
+      // Las cotizaciones (y su id_cotizacion) vienen de la ficha. Una compra ágil cruzada por el
+      // COT del nombre de la OC puede llegar aquí sin ficha leída: sin esto solo bajarían las bases.
+      if (!proceso.detalleRevisadoAt) await this.compraAgil.leerFichasPendientes([codigo]);
       const cotizaciones = await this.prisma.oferta.findMany({
         where: { procesoCodigo: codigo, idExterno: { not: null }, OR: [{ seleccionada: true }, { proveedorRut: { in: adjudicados.map((a) => a.proveedorRut) } }] },
         select: { proveedorRut: true, idExterno: true },
