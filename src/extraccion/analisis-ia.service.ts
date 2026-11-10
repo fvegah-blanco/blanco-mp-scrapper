@@ -32,7 +32,7 @@ export const esquemaAnexo = z.object({
 });
 export type AnalisisAnexo = z.infer<typeof esquemaAnexo>;
 
-const SISTEMA = `Eres un extractor de datos de documentos de compras públicas de Chile (Mercado Público).
+export const SISTEMA = `Eres un extractor de datos de documentos de compras públicas de Chile (Mercado Público).
 Recibes un documento que subió un proveedor en una licitación o compra ágil: normalmente el "ANEXO N°1 / Formulario de identificación del oferente", o una cotización con membrete.
 El formato varía entre organismos: "CAMPO: valor", campos numerados, tablas, etiquetas sin dos puntos, escaneos.
 
