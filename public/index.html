@@ -1,0 +1,384 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>MP Scrapper</title>
+<style>
+  /* Tokens del back office de Blanco (app/globals.css), claro y oscuro. */
+  :root {
+    --bg: #ffffff; --surface: #f6f7f9; --card: #ffffff; --ink: #151928; --muted: #5c6170;
+    --border: #e4e7ec; --primary: #3236c7; --on-primary: #ffffff; --primary-soft: #eceefe;
+    --ok: #047857; --ok-soft: #e6f6ef; --warn: #92560a; --warn-soft: #fdf3e2; --err: #c81e1e; --err-soft: #fdecec;
+    --info: #3236c7; --info-soft: #eceefe; --focus: #3236c7;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #10131c; --surface: #151925; --card: #191d29; --ink: #eceef7; --muted: #c4cbdf;
+      --border: #2c3243; --primary: #a4a7ff; --on-primary: #10131c; --primary-soft: #262a4a;
+      --ok: #5cd7ab; --ok-soft: #173229; --warn: #edbc69; --warn-soft: #362a14; --err: #f08a95; --err-soft: #3a1c22;
+      --info: #a4a7ff; --info-soft: #262a4a; --focus: #a4a7ff;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #10131c; --surface: #151925; --card: #191d29; --ink: #eceef7; --muted: #c4cbdf;
+    --border: #2c3243; --primary: #a4a7ff; --on-primary: #10131c; --primary-soft: #262a4a;
+    --ok: #5cd7ab; --ok-soft: #173229; --warn: #edbc69; --warn-soft: #362a14; --err: #f08a95; --err-soft: #3a1c22;
+    --info: #a4a7ff; --info-soft: #262a4a; --focus: #a4a7ff;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  header { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid var(--border); background: var(--card); }
+  header h1 { margin: 0; font-size: 17px; }
+  header .sub { color: var(--muted); font-size: 12px; }
+  .controles { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  input, select { font: inherit; color: var(--ink); background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 6px 9px; }
+  input:focus-visible, select:focus-visible, button:focus-visible, a:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  button { font: inherit; cursor: pointer; border-radius: 8px; padding: 6px 11px; border: 1px solid var(--border); background: var(--card); color: var(--ink); }
+  button:hover { background: var(--surface); }
+  button.primario { background: var(--primary); color: var(--on-primary); border-color: var(--primary); font-weight: 600; }
+  button.primario:hover { filter: brightness(1.08); }
+  button:disabled { opacity: .55; cursor: default; }
+  nav { display: flex; gap: 4px; padding: 0 16px; border-bottom: 1px solid var(--border); background: var(--card); overflow-x: auto; position: sticky; top: 0; z-index: 2; }
+  nav button { border: 0; border-bottom: 2px solid transparent; border-radius: 0; padding: 10px 12px; background: none; color: var(--muted); white-space: nowrap; }
+  nav button[aria-selected="true"] { color: var(--primary); border-bottom-color: var(--primary); font-weight: 600; }
+  main { padding: 16px; max-width: 1280px; margin: 0 auto; }
+  section[hidden] { display: none; }
+  h2 { font-size: 15px; margin: 4px 0 12px; }
+  .tarjetas { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px; margin-bottom: 18px; }
+  .tarjeta { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; }
+  .tarjeta .k { color: var(--muted); font-size: 12px; }
+  .tarjeta .v { font-size: 22px; font-weight: 650; margin-top: 2px; font-variant-numeric: tabular-nums; }
+  .tarjeta .d { color: var(--muted); font-size: 12px; margin-top: 4px; }
+  .tabla { width: 100%; overflow-x: auto; background: var(--card); border: 1px solid var(--border); border-radius: 12px; }
+  table { border-collapse: collapse; width: 100%; min-width: 640px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { font-size: 12px; color: var(--muted); font-weight: 600; background: var(--surface); }
+  tr:last-child td { border-bottom: 0; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .muted { color: var(--muted); }
+  .chip { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+  .chip.ok { background: var(--ok-soft); color: var(--ok); }
+  .chip.warn { background: var(--warn-soft); color: var(--warn); }
+  .chip.err { background: var(--err-soft); color: var(--err); }
+  .chip.info { background: var(--info-soft); color: var(--info); }
+  .chip.neutro { background: var(--surface); color: var(--muted); border: 1px solid var(--border); }
+  a { color: var(--primary); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .acciones { display: flex; gap: 6px; flex-wrap: wrap; }
+  .meses { display: grid; grid-template-columns: 70px repeat(12, minmax(56px, 1fr)); gap: 6px; align-items: center; min-width: 820px; }
+  .mes { border: 1px solid var(--border); border-radius: 8px; padding: 6px; text-align: center; font-size: 12px; background: var(--card); }
+  .mes b { display: block; font-size: 11px; }
+  .mes.OK { background: var(--ok-soft); color: var(--ok); border-color: transparent; }
+  .mes.ERROR { background: var(--err-soft); color: var(--err); border-color: transparent; }
+  .mes.PROCESANDO, .mes.DESCARGANDO { background: var(--info-soft); color: var(--info); border-color: transparent; }
+  .mes.FALTA, .mes.PENDIENTE { color: var(--muted); }
+  .mes button { margin-top: 4px; padding: 2px 6px; font-size: 11px; }
+  .aviso { padding: 10px 12px; border-radius: 10px; background: var(--info-soft); color: var(--ink); margin-bottom: 12px; border: 1px solid var(--border); }
+  .aviso.err { background: var(--err-soft); }
+  .fila { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+  dialog { border: 1px solid var(--border); border-radius: 12px; background: var(--card); color: var(--ink); max-width: min(900px, 94vw); width: 100%; }
+  dialog::backdrop { background: rgb(0 0 0 / .45); }
+  pre { white-space: pre-wrap; word-break: break-word; background: var(--surface); padding: 10px; border-radius: 8px; max-height: 60vh; overflow: auto; }
+  .nowrap { white-space: nowrap; }
+  @media (max-width: 640px) { .tarjeta .v { font-size: 19px; } }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>MP Scrapper</h1>
+    <div class="sub">Mercado Público: datos abiertos, OC en tiempo real, adjuntos y contactos</div>
+  </div>
+  <div class="controles">
+    <label class="muted" for="llave">Llave</label>
+    <input id="llave" type="password" placeholder="x-admin-key" autocomplete="off" size="14" />
+    <select id="tema" aria-label="Tema">
+      <option value="">Tema del sistema</option>
+      <option value="light">Claro</option>
+      <option value="dark">Oscuro</option>
+    </select>
+    <button id="recargar" type="button">Recargar</button>
+  </div>
+</header>
+<nav role="tablist" aria-label="Secciones">
+  <button role="tab" data-tab="resumen" aria-selected="true">Resumen</button>
+  <button role="tab" data-tab="crons" aria-selected="false">Crons</button>
+  <button role="tab" data-tab="masivo" aria-selected="false">Datos abiertos</button>
+  <button role="tab" data-tab="adjudicaciones" aria-selected="false">Adjudicaciones</button>
+  <button role="tab" data-tab="contactos" aria-selected="false">Contactos</button>
+  <button role="tab" data-tab="parametros" aria-selected="false">Parámetros</button>
+</nav>
+<main>
+  <div id="mensaje" hidden></div>
+
+  <section id="resumen" role="tabpanel">
+    <div class="tarjetas" id="tarjetas"></div>
+  </section>
+
+  <section id="crons" role="tabpanel" hidden>
+    <h2>Crons</h2>
+    <p class="muted">Mismo modelo que el back office: cada job se puede pausar, disparar a mano o cambiar de horario; la configuración vive en <code>cron_job_configs</code>.</p>
+    <div class="tabla"><table>
+      <thead><tr><th>Job</th><th>Estado</th><th>Horario</th><th>Última corrida</th><th>Próxima</th><th>Acciones</th></tr></thead>
+      <tbody id="tablaCrons"></tbody>
+    </table></div>
+  </section>
+
+  <section id="masivo" role="tabpanel" hidden>
+    <h2>Descarga masiva por URL (datos-abiertos.chilecompra.cl)</h2>
+    <p class="muted">Un .zip por tipo y mes. Un mes se reprocesa solo si ChileCompra lo regeneró (cambió el ETag). Clic en un mes para procesarlo ahora.</p>
+    <div class="tabla" style="padding:12px"><div class="meses" id="meses"></div></div>
+  </section>
+
+  <section id="adjudicaciones" role="tabpanel" hidden>
+    <h2>Adjudicaciones</h2>
+    <div class="fila">
+      <select id="filtroTipo" aria-label="Tipo de proceso">
+        <option value="">Todos los tipos</option>
+        <option value="COMPRA_AGIL">Compra ágil</option>
+        <option value="LICITACION_PUBLICA">Licitación pública</option>
+        <option value="LICITACION_PRIVADA">Licitación privada</option>
+      </select>
+      <input id="filtroRut" placeholder="RUT comprador o proveedor" aria-label="RUT" />
+      <button id="buscarAdj" type="button" class="primario">Buscar</button>
+    </div>
+    <div class="tabla"><table>
+      <thead><tr><th>Proceso</th><th>Comprador (deudor)</th><th>Adjudicado (vendedor)</th><th>OC</th><th class="num">Monto</th><th>Origen</th></tr></thead>
+      <tbody id="tablaAdj"></tbody>
+    </table></div>
+  </section>
+
+  <section id="contactos" role="tabpanel" hidden>
+    <h2>Contactos encontrados</h2>
+    <div class="fila">
+      <select id="filtroRol" aria-label="Rol">
+        <option value="">Todos los roles</option>
+        <option value="COMPRADOR">Comprador (deudor)</option>
+        <option value="PROVEEDOR">Proveedor (vendedor)</option>
+        <option value="DESCONOCIDO">Sin rol claro</option>
+      </select>
+      <button id="buscarCont" type="button" class="primario">Buscar</button>
+    </div>
+    <div class="tabla"><table>
+      <thead><tr><th>RUT</th><th>Rol</th><th>Nombre / cargo</th><th>Correo</th><th>Teléfono</th><th>Fuente</th><th class="num">Confianza</th></tr></thead>
+      <tbody id="tablaCont"></tbody>
+    </table></div>
+  </section>
+
+  <section id="parametros" role="tabpanel" hidden>
+    <h2>Parámetros vivos</h2>
+    <p class="muted">Se aplican en la próxima corrida, sin redeploy.</p>
+    <div class="tabla"><table>
+      <thead><tr><th>Parámetro</th><th>Valor</th><th>Descripción</th><th></th></tr></thead>
+      <tbody id="tablaParams"></tbody>
+    </table></div>
+  </section>
+</main>
+
+<dialog id="dialogo">
+  <h2 id="dialogoTitulo"></h2>
+  <pre id="dialogoCuerpo"></pre>
+  <form method="dialog"><button>Cerrar</button></form>
+</dialog>
+
+<script>
+(() => {
+  const $ = (s) => document.querySelector(s);
+  const guardar = (k, v) => { try { localStorage.setItem(k, v); } catch {} };
+  const leer = (k) => { try { return localStorage.getItem(k) ?? ''; } catch { return ''; } };
+  const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const fmtNum = (n) => n == null ? '—' : Number(n).toLocaleString('es-CL', { maximumFractionDigits: 0 });
+  const fmtFecha = (d) => d ? new Date(d).toLocaleString('es-CL', { dateStyle: 'short', timeStyle: 'short' }) : '—';
+  const MESES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+
+  // Tema: sistema / claro / oscuro (preferencia local del navegador).
+  const aplicarTema = (t) => { if (t) document.documentElement.dataset.theme = t; else delete document.documentElement.dataset.theme; };
+  $('#tema').value = leer('tema'); aplicarTema(leer('tema'));
+  $('#tema').addEventListener('change', (e) => { guardar('tema', e.target.value); aplicarTema(e.target.value); });
+  $('#llave').value = leer('llave');
+  $('#llave').addEventListener('change', (e) => { guardar('llave', e.target.value); cargarTodo(); });
+
+  async function api(ruta, opciones = {}) {
+    const res = await fetch('/api' + ruta, {
+      ...opciones,
+      headers: { 'content-type': 'application/json', 'x-admin-key': $('#llave').value, ...(opciones.headers || {}) },
+    });
+    const cuerpo = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(cuerpo.message || ('HTTP ' + res.status));
+    return cuerpo;
+  }
+
+  function avisar(texto, error = false) {
+    const m = $('#mensaje');
+    m.hidden = false; m.className = 'aviso' + (error ? ' err' : ''); m.textContent = texto;
+    clearTimeout(avisar.t); avisar.t = setTimeout(() => { m.hidden = true; }, 6000);
+  }
+
+  function chipEstado(estado) {
+    const clases = { SUCCESS: 'ok', OK: 'ok', active: 'ok', RUNNING: 'info', PROCESANDO: 'info', DESCARGANDO: 'info', FAILED: 'err', ERROR: 'err', paused: 'warn' };
+    const textos = { active: 'Activo', paused: 'Pausado', SUCCESS: 'OK', FAILED: 'Falló', RUNNING: 'Corriendo' };
+    return `<span class="chip ${clases[estado] || 'neutro'}">${esc(textos[estado] || estado)}</span>`;
+  }
+
+  // Pestañas
+  document.querySelectorAll('nav [role=tab]').forEach((b) => b.addEventListener('click', () => {
+    document.querySelectorAll('nav [role=tab]').forEach((x) => x.setAttribute('aria-selected', String(x === b)));
+    document.querySelectorAll('main section').forEach((s) => { s.hidden = s.id !== b.dataset.tab; });
+    guardar('pestana', b.dataset.tab);
+  }));
+  const inicial = document.querySelector(`nav [data-tab="${leer('pestana')}"]`); if (inicial) inicial.click();
+
+  async function cargarResumen() {
+    const { data } = await api('/consultas/resumen');
+    const suma = (arr) => arr.reduce((s, x) => s + x._count, 0);
+    const por = (arr, k, v) => arr.filter((x) => x[k] === v).reduce((s, x) => s + x._count, 0);
+    const t = [
+      ['Organismos (deudores)', fmtNum(data.organismos), 'RUT compradores'],
+      ['Proveedores (vendedores)', fmtNum(data.proveedores), 'RUT que vendieron u ofertaron'],
+      ['Procesos', fmtNum(suma(data.procesos)), data.procesos.map((p) => `${p.tipo.replace('_', ' ').toLowerCase()}: ${fmtNum(p._count)}`).join(' · ')],
+      ['Órdenes de compra', fmtNum(suma(data.ordenes)), data.ordenes.map((o) => `${o.fuente === 'BUSCADOR' ? 'tiempo real' : o.fuente.toLowerCase().replace('_', ' ')}: ${fmtNum(o._count)}`).join(' · ')],
+      ['OC compra ágil sin cruzar', fmtNum(data.ocAgSinProceso), 'pendientes de encontrar su COT'],
+      ['Adjudicaciones', fmtNum(suma(data.adjudicaciones)), data.adjudicaciones.map((a) => `${a.origen.toLowerCase().replace(/_/g, ' ')}: ${fmtNum(a._count)}`).join(' · ')],
+      ['Documentos', fmtNum(suma(data.documentos)), `con texto: ${fmtNum(por(data.documentos, 'extraccionEstado', 'OK'))}`],
+      ['Contactos', fmtNum(suma(data.contactos)), `comprador: ${fmtNum(por(data.contactos, 'rol', 'COMPRADOR'))} · proveedor: ${fmtNum(por(data.contactos, 'rol', 'PROVEEDOR'))}`],
+      ['Última OC en tiempo real', data.ultimaOcTiempoReal ? esc(data.ultimaOcTiempoReal.codigo) : '—', data.ultimaOcTiempoReal ? fmtFecha(data.ultimaOcTiempoReal.fechaEnvio) : 'el poll aún no corre'],
+    ];
+    $('#tarjetas').innerHTML = t.map(([k, v, d]) => `<div class="tarjeta"><div class="k">${esc(k)}</div><div class="v">${v}</div><div class="d">${esc(d)}</div></div>`).join('');
+  }
+
+  async function cargarCrons() {
+    const { data } = await api('/cron-jobs');
+    $('#tablaCrons').innerHTML = data.map((j) => `<tr>
+      <td><b>${esc(j.name)}</b><div class="muted">${esc(j.description)}</div></td>
+      <td>${chipEstado(j.state)}</td>
+      <td><code>${esc(j.activeSchedule)}</code>${j.scheduleOverride ? ' <span class="chip warn">override</span>' : ''}<div class="muted">${esc(j.activeTimeZone || 'hora del servidor')}</div></td>
+      <td>${j.lastRun ? chipEstado(j.lastRun.status) + `<div class="muted">${fmtFecha(j.lastRun.startedAt)} · ${j.lastRun.durationMs != null ? Math.round(j.lastRun.durationMs / 1000) + ' s' : ''}</div>` : '<span class="muted">nunca</span>'}</td>
+      <td class="muted">${fmtFecha(j.nextRun)}</td>
+      <td><div class="acciones">
+        <button data-run="${esc(j.name)}" class="primario">Ejecutar</button>
+        <button data-toggle="${esc(j.name)}" data-state="${j.state}">${j.state === 'paused' ? 'Reanudar' : 'Pausar'}</button>
+        <button data-horario="${esc(j.name)}" data-actual="${esc(j.activeSchedule)}">Horario</button>
+        <button data-hist="${esc(j.name)}">Historial</button>
+      </div></td></tr>`).join('');
+  }
+
+  $('#tablaCrons').addEventListener('click', async (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    try {
+      if (b.dataset.run) { const r = await api(`/cron-jobs/${b.dataset.run}/trigger`, { method: 'POST' }); avisar(r.message || 'Disparado'); }
+      if (b.dataset.toggle) { await api(`/cron-jobs/${b.dataset.toggle}`, { method: 'PATCH', body: JSON.stringify({ state: b.dataset.state === 'paused' ? 'active' : 'paused' }) }); }
+      if (b.dataset.horario) {
+        const nuevo = prompt('Expresión cron (vacío = volver al horario por defecto)', b.dataset.actual);
+        if (nuevo === null) return;
+        await api(`/cron-jobs/${b.dataset.horario}`, { method: 'PATCH', body: JSON.stringify(nuevo.trim() ? { schedule: nuevo.trim() } : { resetSchedule: true }) });
+      }
+      if (b.dataset.hist) {
+        const r = await api(`/cron-jobs/${b.dataset.hist}/runs?limit=15`);
+        $('#dialogoTitulo').textContent = 'Historial · ' + b.dataset.hist;
+        $('#dialogoCuerpo').textContent = r.data.map((x) => `${fmtFecha(x.startedAt)}  ${x.status.padEnd(7)} ${x.triggeredBy.padEnd(6)} ${String(x.durationMs ?? '').padStart(8)} ms  ok:${x.itemsProcessed} err:${x.itemsFailed}\n  ${x.errorMessage ?? JSON.stringify(x.metadata ?? {})}`).join('\n\n') || 'Sin corridas';
+        $('#dialogo').showModal();
+      }
+      await cargarCrons();
+    } catch (err) { avisar(err.message, true); }
+  });
+
+  async function cargarMasivo() {
+    const { data } = await api('/datos-abiertos/estado');
+    const filas = {};
+    for (const m of data) (filas[`${m.tipo} ${m.anio}`] ??= {})[m.mes] = m;
+    let html = '<div></div>' + MESES.map((m) => `<div class="muted" style="text-align:center;font-size:12px">${m}</div>`).join('');
+    for (const [clave, meses] of Object.entries(filas)) {
+      const [tipo, anio] = clave.split(' ');
+      html += `<div><b>${tipo === 'OC' ? 'OC' : 'Licit.'}</b><div class="muted" style="font-size:12px">${anio}</div></div>`;
+      for (let mes = 1; mes <= 12; mes++) {
+        const m = meses[mes];
+        if (!m) { html += '<div></div>'; continue; }
+        html += `<div class="mes ${m.estado}" title="${esc(m.error || m.url)}"><b>${esc(m.estado === 'FALTA' ? 'Falta' : m.estado)}</b>${m.filasLeidas ? fmtNum(m.filasLeidas) : '&nbsp;'}<br><button data-tipo="${tipo}" data-anio="${anio}" data-mes="${mes}">${m.estado === 'OK' ? 'Forzar' : 'Procesar'}</button></div>`;
+      }
+    }
+    $('#meses').innerHTML = html;
+  }
+  $('#meses').addEventListener('click', async (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    try {
+      const forzar = b.textContent === 'Forzar' ? '?forzar=true' : '';
+      const r = await api(`/datos-abiertos/archivos/${b.dataset.tipo}/${b.dataset.anio}/${b.dataset.mes}${forzar}`, { method: 'POST' });
+      avisar(r.message); setTimeout(cargarMasivo, 1500);
+    } catch (err) { avisar(err.message, true); }
+  });
+
+  async function cargarAdj() {
+    const qs = new URLSearchParams({ limit: '100' });
+    if ($('#filtroTipo').value) qs.set('tipo', $('#filtroTipo').value);
+    if ($('#filtroRut').value) qs.set('rut', $('#filtroRut').value);
+    const { data } = await api('/consultas/adjudicaciones?' + qs);
+    $('#tablaAdj').innerHTML = data.map((a) => `<tr>
+      <td><a class="nowrap" href="${esc(a.proceso_link)}" target="_blank" rel="noopener">${esc(a.proceso_codigo)}</a><div class="muted">${esc((a.proceso_nombre || '').slice(0, 70))}</div></td>
+      <td>${esc(a.comprador_nombre || '—')}<div class="muted nowrap">${esc(a.comprador_rut || '')}</div></td>
+      <td>${esc(a.proveedor_nombre || '—')}<div class="muted nowrap">${esc(a.proveedor_rut)}</div></td>
+      <td class="nowrap">${a.orden_compra_codigo ? `<a href="${esc(a.orden_compra_link)}" target="_blank" rel="noopener">${esc(a.orden_compra_codigo)}</a><div class="muted">${fmtFecha(a.orden_compra_fecha_envio)}</div>` : '<span class="muted">sin OC</span>'}</td>
+      <td class="num">$ ${fmtNum(a.monto)}</td>
+      <td><span class="chip ${a.origen === 'FICHA_COMPRA_AGIL' ? 'info' : a.origen === 'ORDEN_COMPRA' ? 'ok' : 'neutro'}">${esc(a.origen.toLowerCase().replace(/_/g, ' '))}</span></td>
+    </tr>`).join('') || '<tr><td colspan="6" class="muted">Sin adjudicaciones con ese filtro</td></tr>';
+  }
+  $('#buscarAdj').addEventListener('click', () => cargarAdj().catch((e) => avisar(e.message, true)));
+
+  async function cargarCont() {
+    const qs = new URLSearchParams({ limit: '100' });
+    if ($('#filtroRol').value) qs.set('rol', $('#filtroRol').value);
+    const { data } = await api('/consultas/contactos?' + qs);
+    const rol = { COMPRADOR: ['info', 'Comprador'], PROVEEDOR: ['ok', 'Proveedor'], DESCONOCIDO: ['neutro', 'Sin rol'] };
+    $('#tablaCont').innerHTML = data.map((c) => `<tr>
+      <td class="nowrap">${esc(c.rut || '—')}</td>
+      <td><span class="chip ${rol[c.rol][0]}">${rol[c.rol][1]}</span></td>
+      <td>${esc(c.nombre || '—')}<div class="muted">${esc(c.cargo || '')}</div></td>
+      <td>${c.email ? `<a href="mailto:${esc(c.email)}">${esc(c.email)}</a>` : '—'}</td>
+      <td>${esc(c.telefono || '—')}</td>
+      <td>${esc(c.fuente.toLowerCase().replace('_', ' '))}<div class="muted" title="${esc(c.evidencia)}">${esc((c.evidencia || '').slice(0, 60))}</div></td>
+      <td class="num">${Math.round(c.confianza * 100)}%</td>
+    </tr>`).join('') || '<tr><td colspan="7" class="muted">Sin contactos todavía</td></tr>';
+  }
+  $('#buscarCont').addEventListener('click', () => cargarCont().catch((e) => avisar(e.message, true)));
+
+  async function cargarParams() {
+    const { data } = await api('/configuracion');
+    $('#tablaParams').innerHTML = data.map((p) => `<tr>
+      <td><code>${esc(p.clave)}</code>${p.modificado ? ' <span class="chip warn">modificado</span>' : ''}</td>
+      <td>${typeof p.valor === 'boolean'
+        ? `<select data-param="${esc(p.clave)}" data-tipo="boolean" aria-label="${esc(p.clave)}"><option value="true" ${p.valor ? 'selected' : ''}>Sí</option><option value="false" ${!p.valor ? 'selected' : ''}>No</option></select>`
+        : `<input data-param="${esc(p.clave)}" data-tipo="number" type="number" value="${esc(p.valor)}" style="width:110px" aria-label="${esc(p.clave)}" />`}</td>
+      <td class="muted">${esc(p.descripcion)}<div>Por defecto: <code>${esc(p.valorPorDefecto)}</code></div></td>
+      <td><div class="acciones"><button data-guardar="${esc(p.clave)}" class="primario">Guardar</button>${p.modificado ? `<button data-reset="${esc(p.clave)}">Restablecer</button>` : ''}</div></td>
+    </tr>`).join('');
+  }
+  $('#tablaParams').addEventListener('click', async (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    try {
+      if (b.dataset.guardar) {
+        const campo = document.querySelector(`[data-param="${b.dataset.guardar}"]`);
+        const valor = campo.dataset.tipo === 'boolean' ? campo.value === 'true' : Number(campo.value);
+        await api(`/configuracion/${b.dataset.guardar}`, { method: 'PATCH', body: JSON.stringify({ valor }) });
+        avisar('Guardado: ' + b.dataset.guardar);
+      }
+      if (b.dataset.reset) await api(`/configuracion/${b.dataset.reset}`, { method: 'DELETE' });
+      await cargarParams();
+    } catch (err) { avisar(err.message, true); }
+  });
+
+  async function cargarTodo() {
+    try {
+      await Promise.all([cargarResumen(), cargarCrons(), cargarMasivo(), cargarAdj(), cargarCont(), cargarParams()]);
+    } catch (err) { avisar(err.message, true); }
+  }
+  $('#recargar').addEventListener('click', cargarTodo);
+  cargarTodo();
+  setInterval(() => { if (!document.hidden) { cargarCrons().catch(() => {}); cargarResumen().catch(() => {}); } }, 30000);
+})();
+</script>
+</body>
+</html>

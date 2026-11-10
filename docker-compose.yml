@@ -1,0 +1,16 @@
+# Postgres local para desarrollo. La app corre con `npm run dev` (puerto 4500).
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: blanco-mp-db
+    environment:
+      POSTGRES_USER: mp
+      POSTGRES_PASSWORD: mp
+      POSTGRES_DB: mp
+    ports:
+      - '5440:5432'
+    volumes:
+      - mp-db-data:/var/lib/postgresql/data
+
+volumes:
+  mp-db-data:

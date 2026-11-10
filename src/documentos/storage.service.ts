@@ -1,0 +1,43 @@
+import { GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { Injectable } from '@nestjs/common';
+import { mkdir, readFile, writeFile } from 'fs/promises';
+import { dirname, join, resolve } from 'path';
+
+/**
+ * Dónde quedan los adjuntos: S3 si hay S3_BUCKET (como el bucket de storage
+ * del back office), si no, disco local en STORAGE_DIR.
+ */
+@Injectable()
+export class StorageService {
+  private readonly bucket = process.env.S3_BUCKET || null;
+  private readonly prefijo = process.env.S3_PREFIX ?? 'mp-scrapper';
+  private readonly dir = resolve(process.env.STORAGE_DIR ?? './storage');
+  private s3: S3Client | null = null;
+
+  private cliente(): S3Client {
+    this.s3 ??= new S3Client({ region: process.env.AWS_REGION ?? 'us-east-1' });
+    return this.s3;
+  }
+
+  /** Guarda y devuelve la ruta lógica (s3://bucket/key o file://ruta). */
+  async guardar(clave: string, contenido: Buffer, mime: string | null): Promise<string> {
+    if (this.bucket) {
+      const key = `${this.prefijo}/${clave}`;
+      await this.cliente().send(new PutObjectCommand({ Bucket: this.bucket, Key: key, Body: contenido, ContentType: mime ?? undefined }));
+      return `s3://${this.bucket}/${key}`;
+    }
+    const ruta = join(this.dir, clave);
+    await mkdir(dirname(ruta), { recursive: true });
+    await writeFile(ruta, contenido);
+    return `file://${ruta}`;
+  }
+
+  async leer(ruta: string): Promise<Buffer> {
+    if (ruta.startsWith('s3://')) {
+      const [, , bucket, ...resto] = ruta.split('/');
+      const r = await this.cliente().send(new GetObjectCommand({ Bucket: bucket, Key: resto.join('/') }));
+      return Buffer.from(await r.Body!.transformToByteArray());
+    }
+    return readFile(ruta.replace(/^file:\/\//, ''));
+  }
+}

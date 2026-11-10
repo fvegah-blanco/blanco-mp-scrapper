@@ -1,0 +1,474 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Datos de Mercado Público
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Todo RUT que aparece en Mercado Público: organismos compradores (los deudores
+/// de una factura al Estado) y proveedores (los vendedores). Un mismo RUT puede
+/// ser ambas cosas.
+model Empresa {
+  /// RUT normalizado sin puntos y con guion: 76573521-1.
+  rut             String   @id
+  razonSocial     String?  @map("razon_social")
+  esOrganismo     Boolean  @default(false) @map("es_organismo")
+  esProveedor     Boolean  @default(false) @map("es_proveedor")
+  /// Código interno de MP del organismo (CodigoOrganismoPublico).
+  codigoOrganismo String?  @map("codigo_organismo")
+  /// Código interno de MP del proveedor (CodigoProveedor).
+  codigoProveedor String?  @map("codigo_proveedor")
+  sector          String?
+  actividad       String?
+  comuna          String?
+  region          String?
+  primeraVezVista DateTime @default(now()) @map("primera_vez_vista") @db.Timestamptz(6)
+  ultimaVezVista  DateTime @default(now()) @map("ultima_vez_vista") @db.Timestamptz(6)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([esOrganismo])
+  @@index([esProveedor])
+  @@map("empresas")
+}
+
+enum TipoProceso {
+  LICITACION_PUBLICA
+  LICITACION_PRIVADA
+  COMPRA_AGIL
+  CONVENIO_MARCO
+  TRATO_DIRECTO
+  OTRO
+
+  @@map("tipo_proceso")
+}
+
+enum FuenteDato {
+  /// Archivos masivos de datos-abiertos.chilecompra.cl.
+  DATOS_ABIERTOS
+  /// API del buscador (api.buscador.mercadopublico.cl).
+  BUSCADOR
+  /// Ficha pública ASP.NET de mercadopublico.cl.
+  FICHA
+
+  @@map("fuente_dato")
+}
+
+enum EstadoAdjuntos {
+  /// Nadie pidió bajar sus adjuntos.
+  NO_SOLICITADO
+  PENDIENTE
+  OK
+  ERROR
+
+  @@map("estado_adjuntos")
+}
+
+/// Un proceso de compra: licitación (pública o privada) o compra ágil (COT).
+model Proceso {
+  /// Código externo: 799512-11-LE26, 1196-63-COT26.
+  codigo            String         @id
+  tipo              TipoProceso
+  /// Sigla del tipo: L1, LE, LP, LQ, LR, O1, E2, CO, B2, H2, I2, COT.
+  codigoTipo        String?        @map("codigo_tipo")
+  /// Id numérico interno de MP (Codigo en el CSV, id en el buscador).
+  idMp              BigInt?        @map("id_mp")
+  nombre            String?
+  descripcion       String?
+  link              String?
+  estado            String?
+  compradorRut      String?        @map("comprador_rut")
+  codigoOrganismo   String?        @map("codigo_organismo")
+  organismo         String?
+  unidad            String?
+  region            String?
+  fechaPublicacion  DateTime?      @map("fecha_publicacion") @db.Timestamptz(6)
+  fechaCierre       DateTime?      @map("fecha_cierre") @db.Timestamptz(6)
+  fechaAdjudicacion DateTime?      @map("fecha_adjudicacion") @db.Timestamptz(6)
+  montoEstimado     Decimal?       @map("monto_estimado") @db.Decimal(20, 2)
+  moneda            String?
+  numeroOferentes   Int?           @map("numero_oferentes")
+  fuente            FuenteDato
+  adjuntosEstado    EstadoAdjuntos @default(NO_SOLICITADO) @map("adjuntos_estado")
+  adjuntosIntentos  Int            @default(0) @map("adjuntos_intentos")
+  adjuntosError     String?        @map("adjuntos_error")
+  adjuntosRevisadoAt DateTime?     @map("adjuntos_revisado_at") @db.Timestamptz(6)
+  /// Compra ágil: cuándo se leyó su ficha (cotizaciones, institución). null = pendiente.
+  detalleRevisadoAt DateTime?      @map("detalle_revisado_at") @db.Timestamptz(6)
+  detalleError      String?        @map("detalle_error")
+  createdAt         DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  ofertas        Oferta[]
+  adjudicaciones Adjudicacion[]
+  documentos     Documento[]
+
+  @@index([tipo])
+  @@index([compradorRut])
+  @@index([fechaPublicacion])
+  @@index([adjuntosEstado])
+  @@index([tipo, detalleRevisadoAt])
+  @@map("procesos")
+}
+
+/// Una oferta por ítem: una fila del archivo de licitaciones o una cotización
+/// de compra ágil. `seleccionada` dice quién ganó ese ítem.
+model Oferta {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  procesoCodigo      String   @map("proceso_codigo")
+  /// Id del ítem en MP (Codigoitem); '0' en compra ágil (cotización completa).
+  codigoItem         String   @map("codigo_item")
+  correlativo        Int?
+  producto           String?
+  proveedorRut       String   @map("proveedor_rut")
+  nombreOferta       String?  @map("nombre_oferta")
+  estadoOferta       String?  @map("estado_oferta")
+  cantidadOfertada   Decimal? @map("cantidad_ofertada") @db.Decimal(20, 4)
+  montoUnitario      Decimal? @map("monto_unitario") @db.Decimal(20, 4)
+  valorTotal         Decimal? @map("valor_total") @db.Decimal(20, 2)
+  cantidadAdjudicada Decimal? @map("cantidad_adjudicada") @db.Decimal(20, 4)
+  montoAdjudicado    Decimal? @map("monto_adjudicado") @db.Decimal(20, 2)
+  seleccionada       Boolean  @default(false)
+  fechaEnvio         DateTime? @map("fecha_envio") @db.Timestamptz(6)
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  proceso Proceso @relation(fields: [procesoCodigo], references: [codigo], onDelete: Cascade)
+
+  @@unique([procesoCodigo, codigoItem, proveedorRut])
+  @@index([proveedorRut])
+  @@map("ofertas")
+}
+
+/// Orden de compra. `id` es el ID numérico de MP, el mismo en el CSV masivo y
+/// en el buscador; `procesoCodigo` la amarra a su licitación o compra ágil.
+model OrdenCompra {
+  id                 BigInt    @id
+  codigo             String    @unique
+  link               String?
+  nombre             String?
+  descripcion        String?
+  /// Sigla: AG (compra ágil), SE (licitación), CM (convenio marco), TD, CC, ...
+  tipo               String?
+  procedencia        String?
+  esCompraAgil       Boolean   @default(false) @map("es_compra_agil")
+  esTratoDirecto     Boolean   @default(false) @map("es_trato_directo")
+  estado             String?
+  estadoProveedor    String?   @map("estado_proveedor")
+  fechaCreacion      DateTime? @map("fecha_creacion") @db.Timestamptz(6)
+  fechaEnvio         DateTime? @map("fecha_envio") @db.Timestamptz(6)
+  fechaAceptacion    DateTime? @map("fecha_aceptacion") @db.Timestamptz(6)
+  fechaCancelacion   DateTime? @map("fecha_cancelacion") @db.Timestamptz(6)
+  montoTotal         Decimal?  @map("monto_total") @db.Decimal(20, 2)
+  moneda             String?
+  montoTotalClp      Decimal?  @map("monto_total_clp") @db.Decimal(20, 2)
+  compradorRut       String?   @map("comprador_rut")
+  unidadCompra       String?   @map("unidad_compra")
+  codigoUnidadCompra String?   @map("codigo_unidad_compra")
+  organismo          String?
+  codigoOrganismo    String?   @map("codigo_organismo")
+  proveedorRut       String?   @map("proveedor_rut")
+  proveedorNombre    String?   @map("proveedor_nombre")
+  codigoProveedor    String?   @map("codigo_proveedor")
+  procesoCodigo      String?   @map("proceso_codigo")
+  convenioMarco      String?   @map("convenio_marco")
+  formaPago          String?   @map("forma_pago")
+  fuente             FuenteDato
+  /// Cuándo se leyó la ficha pública (contacto del comprador, licitación de origen).
+  fichaRevisadaAt    DateTime? @map("ficha_revisada_at") @db.Timestamptz(6)
+  fichaError         String?   @map("ficha_error")
+  /// Cuándo se intentó encontrar su compra ágil (solo AG).
+  matchIntentadoAt   DateTime? @map("match_intentado_at") @db.Timestamptz(6)
+  matchIntentos      Int       @default(0) @map("match_intentos")
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  items OrdenCompraItem[]
+
+  @@index([fechaEnvio])
+  @@index([compradorRut])
+  @@index([proveedorRut])
+  @@index([procesoCodigo])
+  @@index([tipo, procesoCodigo])
+  @@map("ordenes_compra")
+}
+
+model OrdenCompraItem {
+  /// IDItem de MP.
+  id                      BigInt   @id
+  ordenCompraId           BigInt   @map("orden_compra_id")
+  codigoProductoOnu       String?  @map("codigo_producto_onu")
+  producto                String?
+  rubro                   String?
+  especificacionComprador String?  @map("especificacion_comprador")
+  especificacionProveedor String?  @map("especificacion_proveedor")
+  cantidad                Decimal? @db.Decimal(20, 4)
+  unidadMedida            String?  @map("unidad_medida")
+  precioNeto              Decimal? @map("precio_neto") @db.Decimal(20, 4)
+  totalLineaNeto          Decimal? @map("total_linea_neto") @db.Decimal(20, 2)
+
+  ordenCompra OrdenCompra @relation(fields: [ordenCompraId], references: [id], onDelete: Cascade)
+
+  @@index([ordenCompraId])
+  @@map("orden_compra_items")
+}
+
+enum OrigenAdjudicacion {
+  /// Fila con "Oferta seleccionada" en el archivo de licitaciones.
+  OFERTA_SELECCIONADA
+  /// OC con CodigoLicitacion (CSV masivo o ficha de la OC).
+  ORDEN_COMPRA
+  /// Ficha de la compra ágil: id_orden_compra / cotización seleccionada.
+  FICHA_COMPRA_AGIL
+
+  @@map("origen_adjudicacion")
+}
+
+/// Quién se terminó adjudicando cada proceso. Una fila por proceso, proveedor y
+/// OC (o por oferta seleccionada cuando todavía no hay OC).
+model Adjudicacion {
+  id            String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// proceso|rut|ocId (o proceso|rut|oferta): evita duplicados entre fuentes.
+  clave         String             @unique
+  procesoCodigo String             @map("proceso_codigo")
+  proveedorRut  String             @map("proveedor_rut")
+  ordenCompraId BigInt?            @map("orden_compra_id")
+  monto         Decimal?           @db.Decimal(20, 2)
+  origen        OrigenAdjudicacion
+  detectadaAt   DateTime           @default(now()) @map("detectada_at") @db.Timestamptz(6)
+  updatedAt     DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  proceso Proceso @relation(fields: [procesoCodigo], references: [codigo], onDelete: Cascade)
+
+  @@index([procesoCodigo])
+  @@index([proveedorRut])
+  @@index([detectadaAt])
+  @@map("adjudicaciones")
+}
+
+enum EstadoDocumento {
+  PENDIENTE
+  DESCARGADO
+  /// Muy grande o formato que no se guarda.
+  OMITIDO
+  ERROR
+
+  @@map("estado_documento")
+}
+
+enum EstadoExtraccion {
+  PENDIENTE
+  OK
+  SIN_TEXTO
+  ERROR
+
+  @@map("estado_extraccion")
+}
+
+enum MetodoExtraccion {
+  TEXTO
+  OCR
+  NINGUNO
+
+  @@map("metodo_extraccion")
+}
+
+/// Adjunto de una licitación o compra ágil (bases, anexos, ofertas, actas).
+model Documento {
+  id                String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  procesoCodigo     String           @map("proceso_codigo")
+  /// GUID del adjunto (compra ágil) o "<pagina>#<fila>" (licitación).
+  idExterno         String           @map("id_externo")
+  nombre            String
+  tipoAnexo         String?          @map("tipo_anexo")
+  mime              String?
+  tamanoBytes       Int?             @map("tamano_bytes")
+  sha256            String?
+  rutaAlmacen       String?          @map("ruta_almacen")
+  estado            EstadoDocumento  @default(PENDIENTE)
+  error             String?
+  descargadoAt      DateTime?        @map("descargado_at") @db.Timestamptz(6)
+  extraccionEstado  EstadoExtraccion @default(PENDIENTE) @map("extraccion_estado")
+  metodoExtraccion  MetodoExtraccion? @map("metodo_extraccion")
+  /// Texto extraído (truncado a TEXTO_MAX_CHARS).
+  texto             String?
+  extraidoAt        DateTime?        @map("extraido_at") @db.Timestamptz(6)
+  createdAt         DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime         @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  proceso Proceso @relation(fields: [procesoCodigo], references: [codigo], onDelete: Cascade)
+
+  @@unique([procesoCodigo, idExterno])
+  @@index([estado])
+  @@index([extraccionEstado])
+  @@map("documentos")
+}
+
+enum RolContacto {
+  /// Organismo comprador: el deudor de la factura.
+  COMPRADOR
+  /// Proveedor adjudicado: el vendedor (cliente potencial de factoring).
+  PROVEEDOR
+  DESCONOCIDO
+
+  @@map("rol_contacto")
+}
+
+enum FuenteContacto {
+  FICHA_OC
+  FICHA_LICITACION
+  DOCUMENTO
+
+  @@map("fuente_contacto")
+}
+
+/// Datos de contacto encontrados: en la ficha de la OC (comprador) o en el
+/// texto de los adjuntos (comprador o proveedor).
+model Contacto {
+  id             String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// rut|rol|email|telefono normalizados: el mismo dato visto dos veces es una fila.
+  clave          String         @unique
+  rut            String?
+  rol            RolContacto
+  nombre         String?
+  cargo          String?
+  email          String?
+  telefono       String?
+  fuente         FuenteContacto
+  procesoCodigo  String?        @map("proceso_codigo")
+  ordenCompraId  BigInt?        @map("orden_compra_id")
+  documentoId    String?        @map("documento_id") @db.Uuid
+  /// Fragmento del texto donde apareció, para revisar a mano.
+  evidencia      String?
+  /// 0..1: qué tan seguro es el rol asignado.
+  confianza      Float          @default(0.5)
+  vecesVisto     Int            @default(1) @map("veces_visto")
+  createdAt      DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  ultimaVezVisto DateTime       @default(now()) @map("ultima_vez_visto") @db.Timestamptz(6)
+
+  @@index([rut])
+  @@index([rol])
+  @@index([procesoCodigo])
+  @@map("contactos")
+}
+
+enum TipoReporte {
+  /// Órdenes de compra (oc-da).
+  OC
+  /// Licitaciones (lic-da).
+  LIC
+
+  @@map("tipo_reporte")
+}
+
+enum EstadoArchivo {
+  PENDIENTE
+  DESCARGANDO
+  PROCESANDO
+  OK
+  ERROR
+
+  @@map("estado_archivo")
+}
+
+/// Un archivo masivo de datos abiertos (tipo × año × mes) y su último proceso.
+/// El ETag dice si ChileCompra lo regeneró: los meses abiertos cambian a diario.
+model ArchivoMasivo {
+  id           String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tipo         TipoReporte
+  anio         Int
+  mes          Int
+  url          String
+  /// ETag del último archivo procesado con éxito.
+  etag         String?
+  lastModified DateTime?     @map("last_modified") @db.Timestamptz(6)
+  tamanoBytes  BigInt?       @map("tamano_bytes")
+  estado       EstadoArchivo @default(PENDIENTE)
+  filasLeidas  Int           @default(0) @map("filas_leidas")
+  filasError   Int           @default(0) @map("filas_error")
+  error        String?
+  iniciadoAt   DateTime?     @map("iniciado_at") @db.Timestamptz(6)
+  terminadoAt  DateTime?     @map("terminado_at") @db.Timestamptz(6)
+  createdAt    DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([tipo, anio, mes])
+  @@map("archivos_masivos")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Administración (mismo modelo que el back office)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Parámetros vivos editables desde la API (lotes, ventanas, interruptores) y
+/// marcas de agua de los crons.
+model Configuracion {
+  clave       String   @id
+  valor       Json
+  descripcion String?
+  updatedBy   String?  @map("updated_by")
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("configuraciones")
+}
+
+enum CronJobRunStatus {
+  RUNNING
+  SUCCESS
+  FAILED
+
+  @@map("cron_job_run_status")
+}
+
+enum CronJobTriggerType {
+  CRON
+  MANUAL
+
+  @@map("cron_job_trigger_type")
+}
+
+model CronJobRun {
+  id             String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  jobName        String             @map("job_name")
+  runId          String             @unique @map("run_id") @db.Uuid
+  status         CronJobRunStatus   @default(RUNNING)
+  startedAt      DateTime           @default(now()) @map("started_at") @db.Timestamptz(6)
+  finishedAt     DateTime?          @map("finished_at") @db.Timestamptz(6)
+  durationMs     Int?               @map("duration_ms")
+  itemsProcessed Int                @default(0) @map("items_processed")
+  itemsFailed    Int                @default(0) @map("items_failed")
+  errorMessage   String?            @map("error_message")
+  metadata       Json?              @db.JsonB
+  triggeredBy    CronJobTriggerType @default(CRON) @map("triggered_by")
+
+  @@index([jobName, startedAt(sort: Desc)])
+  @@index([status])
+  @@map("cron_job_runs")
+}
+
+model CronJobConfig {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  jobName          String   @unique @map("job_name")
+  enabled          Boolean  @default(true)
+  scheduleOverride String?  @map("schedule_override")
+  timeZoneOverride String?  @map("time_zone_override")
+  updatedBy        String?  @map("updated_by")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("cron_job_configs")
+}
+
+/// Turno de cada tick entre instancias (rolling update): ver turno-cron.ts.
+model CronTurno {
+  jobName   String   @id @map("job_name")
+  tomadoAt  DateTime @map("tomado_at") @db.Timestamptz(6)
+  instancia String
+
+  @@map("cron_turnos")
+}
