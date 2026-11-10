@@ -36,6 +36,10 @@ export const PARAMETROS = {
     valor: 10,
     descripcion: 'Tope de búsquedas por palabras por corrida (el buscador corta a los 29 s).',
   },
+  'match_compra_agil.presupuesto_segundos': {
+    valor: 240,
+    descripcion: 'Tiempo máximo por corrida para las búsquedas por palabras (el buscador responde lento o con 504).',
+  },
   'compras_agiles.lote_fichas': {
     valor: 60,
     descripcion: 'Fichas de compra ágil que se leen por corrida (cotizaciones: quién ofertó, por cuánto y quién ganó).',
@@ -75,6 +79,34 @@ export const PARAMETROS = {
   'adjuntos.max_intentos': {
     valor: 3,
     descripcion: 'Intentos de descarga de un proceso antes de dejarlo en ERROR.',
+  },
+  'adjuntos.documentos_adjudicado': {
+    valor: true,
+    descripcion: 'Bajar también los documentos del proveedor adjudicado: Anexo N°1 del cuadro de ofertas (licitación) o adjuntos de su cotización (compra ágil).',
+  },
+  'adjuntos.oferta_solo_anexo1': {
+    valor: true,
+    descripcion: 'En licitaciones, del oferente bajar solo el Anexo N°1 (si no se reconoce, los primeros PDF administrativos).',
+  },
+  'adjuntos.oferta_max_administrativos': {
+    valor: 3,
+    descripcion: 'PDF administrativos que se bajan cuando el oferente no tiene un archivo que parezca Anexo N°1.',
+  },
+  'adjuntos.pausa_ms': {
+    valor: 400,
+    descripcion: 'Pausa entre requests al portal de licitaciones (banea por IP pasado cierto volumen).',
+  },
+  'bedrock.habilitado': {
+    valor: true,
+    descripcion: 'Analizar con Bedrock los documentos del oferente (Anexo N°1 y cotizaciones). Sin credenciales BEDROCK_AWS_* no corre.',
+  },
+  'bedrock.lote': {
+    valor: 20,
+    descripcion: 'Documentos que se mandan a Bedrock por corrida (control de costo).',
+  },
+  'bedrock.max_paginas': {
+    valor: 4,
+    descripcion: 'Páginas de cada PDF que se mandan como imagen al modelo (el Anexo N°1 rara vez pasa de 2).',
   },
   'extraccion.lote': {
     valor: 15,

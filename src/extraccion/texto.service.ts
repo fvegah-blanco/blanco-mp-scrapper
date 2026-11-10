@@ -58,17 +58,20 @@ export class TextoService {
     }
   }
 
+  /** Primeras `max` páginas de un PDF como PNG (para OCR o para mandarlas a un modelo con visión). */
+  async paginasComoImagen(contenido: Buffer, max: number, escala = 2): Promise<Buffer[]> {
+    const doc = await abrirPdf(contenido);
+    try {
+      const out: Buffer[] = [];
+      for (let n = 1; n <= Math.min(doc.numPages, max); n++) out.push(await rasterizar(doc, n, escala));
+      return out;
+    } finally {
+      await doc.loadingTask.destroy();
+    }
+  }
+
   private async pdf(contenido: Buffer, ocrMaxPaginas: number): Promise<TextoExtraido> {
-    const pdfjs = await cargarPdfjs();
-    const base = dirname(require.resolve('pdfjs-dist/package.json'));
-    // wasmUrl: los escaneados suelen venir en JBIG2/JPX, que pdf.js decodifica con wasm.
-    const doc = await pdfjs.getDocument({
-      data: new Uint8Array(contenido),
-      wasmUrl: join(base, 'wasm') + '/',
-      standardFontDataUrl: join(base, 'standard_fonts') + '/',
-      cMapUrl: join(base, 'cmaps') + '/',
-      disableFontFace: true,
-    }).promise;
+    const doc = await abrirPdf(contenido);
     try {
       const paginas: string[] = [];
       for (let n = 1; n <= doc.numPages; n++) {
@@ -81,14 +84,9 @@ export class TextoService {
         return { texto: paginas.join('\n\n'), metodo: 'TEXTO', paginas: doc.numPages };
       }
       // Escaneado: se rasteriza y se pasa por OCR (las primeras N páginas).
-      const { createCanvas } = await import('@napi-rs/canvas');
       const partes: string[] = [];
       for (let n = 1; n <= Math.min(doc.numPages, ocrMaxPaginas); n++) {
-        const pagina = await doc.getPage(n);
-        const vista = pagina.getViewport({ scale: 2 });
-        const lienzo = createCanvas(Math.ceil(vista.width), Math.ceil(vista.height));
-        await pagina.render({ canvas: lienzo as unknown as HTMLCanvasElement, canvasContext: lienzo.getContext('2d') as unknown as CanvasRenderingContext2D, viewport: vista }).promise;
-        partes.push(await this.ocr.reconocer(lienzo.toBuffer('image/png')));
+        partes.push(await this.ocr.reconocer(await rasterizar(doc, n, 2)));
       }
       return { texto: partes.join('\n\n'), metodo: 'OCR', paginas: doc.numPages };
     } finally {
@@ -135,6 +133,30 @@ function cargarPdfjs(): Promise<Pdfjs> {
   const importar = new Function('ruta', 'return import(ruta)') as (ruta: string) => Promise<Pdfjs>;
   pdfjsCargado ??= importar(require.resolve('pdfjs-dist/legacy/build/pdf.mjs'));
   return pdfjsCargado;
+}
+
+type DocumentoPdf = Awaited<ReturnType<Pdfjs['getDocument']>['promise']>;
+
+async function abrirPdf(contenido: Buffer): Promise<DocumentoPdf> {
+  const pdfjs = await cargarPdfjs();
+  const base = dirname(require.resolve('pdfjs-dist/package.json'));
+  // wasmUrl: los escaneados suelen venir en JBIG2/JPX, que pdf.js decodifica con wasm.
+  return pdfjs.getDocument({
+    data: new Uint8Array(contenido),
+    wasmUrl: join(base, 'wasm') + '/',
+    standardFontDataUrl: join(base, 'standard_fonts') + '/',
+    cMapUrl: join(base, 'cmaps') + '/',
+    disableFontFace: true,
+  }).promise;
+}
+
+async function rasterizar(doc: DocumentoPdf, n: number, escala: number): Promise<Buffer> {
+  const { createCanvas } = await import('@napi-rs/canvas');
+  const pagina = await doc.getPage(n);
+  const vista = pagina.getViewport({ scale: escala });
+  const lienzo = createCanvas(Math.ceil(vista.width), Math.ceil(vista.height));
+  await pagina.render({ canvas: lienzo as unknown as HTMLCanvasElement, canvasContext: lienzo.getContext('2d') as unknown as CanvasRenderingContext2D, viewport: vista }).promise;
+  return lienzo.toBuffer('image/png');
 }
 
 function celdaTexto(v: unknown): string {

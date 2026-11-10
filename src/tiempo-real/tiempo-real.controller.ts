@@ -1,4 +1,5 @@
 import { Controller, NotFoundException, Param, Post, UseGuards } from '@nestjs/common';
+import { BuscadorClient } from '../mercado-publico/buscador.client';
 import { ApiHeader, ApiTags } from '@nestjs/swagger';
 import { AdminKeyGuard } from '../common/admin-key.guard';
 import { PrismaService } from '../prisma/prisma.service';
@@ -14,7 +15,18 @@ export class TiempoRealController {
     private readonly prisma: PrismaService,
     private readonly fichas: FichasOcService,
     private readonly match: MatchCompraAgilService,
+    private readonly buscador: BuscadorClient,
   ) {}
+
+  /** Relee la ficha de una compra ágil (cotizaciones, ganador, id de cada cotización). */
+  @Post('compras-agiles/:codigo/ficha')
+  async fichaCompraAgil(@Param('codigo') codigo: string) {
+    const ficha = await this.buscador.fichaCompraAgil(codigo);
+    if (!ficha) throw new NotFoundException(`El buscador no tiene ficha para ${codigo}`);
+    await this.match.guardarCompraAgil(ficha);
+    const ofertas = await this.prisma.oferta.findMany({ where: { procesoCodigo: ficha.codigo.toUpperCase() }, select: { proveedorRut: true, valorTotal: true, seleccionada: true, idExterno: true } });
+    return { success: true, data: { codigo: ficha.codigo, estado: ficha.estado, ofertas } };
+  }
 
   /** Lee la ficha y busca el proceso de una OC puntual, ahora. */
   @Post('ordenes/:codigo/cruzar')

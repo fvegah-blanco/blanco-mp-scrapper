@@ -4,7 +4,8 @@ import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 import { getErrorMessage } from '../common/errores';
 import { ConfiguracionService } from '../configuracion/configuracion.service';
 import { IngestaRepository } from '../ingesta/ingesta.repository';
-import { AdjuntosClient } from '../mercado-publico/adjuntos.client';
+import { type AdjuntoRemoto, AdjuntosClient } from '../mercado-publico/adjuntos.client';
+import { OfertasClient, PortalBloqueadoError } from '../mercado-publico/ofertas.client';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from './storage.service';
 
@@ -23,6 +24,7 @@ export class AdjuntosService {
     @InjectPinoLogger(AdjuntosService.name) private readonly logger: PinoLogger,
     private readonly prisma: PrismaService,
     private readonly cliente: AdjuntosClient,
+    private readonly ofertas: OfertasClient,
     private readonly storage: StorageService,
     private readonly configuracion: ConfiguracionService,
     private readonly ingesta: IngestaRepository,
@@ -51,8 +53,13 @@ export class AdjuntosService {
     for (const { codigo } of pendientes) {
       try {
         archivos += await this.descargarProceso(codigo);
-      } catch {
+      } catch (error) {
         fallidos++;
+        // El portal nos bloqueó: seguir solo empeora el baneo. Se retoma en la próxima corrida.
+        if (error instanceof PortalBloqueadoError) {
+          this.logger.warn({ codigo }, 'Portal de licitaciones respondió 403: se corta la corrida');
+          break;
+        }
       }
     }
     return { procesos: pendientes.length, archivos, fallidos };
@@ -64,7 +71,17 @@ export class AdjuntosService {
     const maxBytes = (await this.configuracion.get('adjuntos.max_mb_por_archivo')) * 1024 * 1024;
     const maxIntentos = await this.configuracion.get('adjuntos.max_intentos');
     try {
-      const remotos = (await this.cliente.listar(codigo)).slice(0, maxArchivos);
+      const remotos: Array<AdjuntoRemoto & { origen?: 'BASES' | 'OFERTA' | 'COTIZACION'; proveedorRut?: string }> =
+        (await this.cliente.listar(codigo)).slice(0, maxArchivos);
+      if (await this.configuracion.get('adjuntos.documentos_adjudicado')) {
+        try {
+          remotos.push(...(await this.documentosDeAdjudicados(codigo)));
+        } catch (error) {
+          if (error instanceof PortalBloqueadoError) throw error;
+          // Sin cuadro de ofertas o una respuesta rara: igual se guardan las bases.
+          this.logger.warn({ codigo, error: getErrorMessage(error) }, 'No se pudieron listar los documentos del adjudicado');
+        }
+      }
       const ya = await this.prisma.documento.findMany({
         where: { procesoCodigo: codigo, estado: { in: ['DESCARGADO', 'OMITIDO'] } },
         select: { idExterno: true },
@@ -77,18 +94,26 @@ export class AdjuntosService {
         try {
           const archivo = await a.descargar();
           const nombre = archivo.nombre ?? a.nombre;
-          const base = { procesoCodigo: codigo, idExterno: a.idExterno, nombre, tipoAnexo: a.tipoAnexo, mime: archivo.mime, tamanoBytes: archivo.contenido.length };
+          const base = {
+            procesoCodigo: codigo, idExterno: a.idExterno, nombre, tipoAnexo: a.tipoAnexo, mime: archivo.mime, tamanoBytes: archivo.contenido.length,
+            origen: a.origen ?? 'BASES', proveedorRut: a.proveedorRut ?? null,
+          };
           if (archivo.contenido.length > maxBytes) {
             await this.guardarDocumento({ ...base, estado: 'OMITIDO', error: `Pesa ${Math.round(archivo.contenido.length / 1048576)} MB` });
             continue;
           }
           const sha256 = createHash('sha256').update(archivo.contenido).digest('hex');
-          const ruta = await this.storage.guardar(`procesos/${codigo}/${sha256.slice(0, 12)}_${nombreSeguro(nombre)}`, archivo.contenido, archivo.mime);
+          const carpeta = a.proveedorRut ? `procesos/${codigo}/oferentes/${a.proveedorRut}` : `procesos/${codigo}`;
+          const ruta = await this.storage.guardar(`${carpeta}/${sha256.slice(0, 12)}_${nombreSeguro(nombre)}`, archivo.contenido, archivo.mime);
           await this.guardarDocumento({ ...base, sha256, rutaAlmacen: ruta, estado: 'DESCARGADO', descargadoAt: new Date(), error: null });
           nuevos++;
         } catch (error) {
           errores++;
-          await this.guardarDocumento({ procesoCodigo: codigo, idExterno: a.idExterno, nombre: a.nombre, tipoAnexo: a.tipoAnexo, estado: 'ERROR', error: getErrorMessage(error).slice(0, 1000) });
+          await this.guardarDocumento({
+            procesoCodigo: codigo, idExterno: a.idExterno, nombre: a.nombre, tipoAnexo: a.tipoAnexo, estado: 'ERROR',
+            origen: a.origen ?? 'BASES', proveedorRut: a.proveedorRut ?? null, error: getErrorMessage(error).slice(0, 1000),
+          });
+          if (error instanceof PortalBloqueadoError) throw error;
         }
       }
       await this.prisma.proceso.update({
@@ -115,8 +140,43 @@ export class AdjuntosService {
     }
   }
 
+  /**
+   * Documentos del proveedor adjudicado, que es donde está el contacto del
+   * vendedor: el Anexo N°1 del cuadro de ofertas (licitación) o los adjuntos de
+   * la cotización ganadora (compra ágil).
+   */
+  private async documentosDeAdjudicados(codigo: string) {
+    const proceso = await this.prisma.proceso.findUnique({ where: { codigo }, select: { tipo: true } });
+    const adjudicados = await this.prisma.adjudicacion.findMany({ where: { procesoCodigo: codigo }, select: { proveedorRut: true }, distinct: ['proveedorRut'] });
+    const out: Array<AdjuntoRemoto & { origen: 'OFERTA' | 'COTIZACION'; proveedorRut: string }> = [];
+
+    if (proceso?.tipo === 'COMPRA_AGIL') {
+      const cotizaciones = await this.prisma.oferta.findMany({
+        where: { procesoCodigo: codigo, idExterno: { not: null }, OR: [{ seleccionada: true }, { proveedorRut: { in: adjudicados.map((a) => a.proveedorRut) } }] },
+        select: { proveedorRut: true, idExterno: true },
+      });
+      for (const c of cotizaciones) {
+        for (const a of await this.cliente.listarCotizacion(c.idExterno!, c.proveedorRut)) out.push({ ...a, origen: 'COTIZACION', proveedorRut: c.proveedorRut });
+      }
+      return out;
+    }
+
+    const pausaMs = await this.configuracion.get('adjuntos.pausa_ms');
+    const soloAnexo1 = await this.configuracion.get('adjuntos.oferta_solo_anexo1');
+    const maxAdministrativos = await this.configuracion.get('adjuntos.oferta_max_administrativos');
+    for (const { proveedorRut } of adjudicados) {
+      const r = await this.ofertas.oferente(codigo, proveedorRut, pausaMs);
+      if (!r) continue;
+      for (const a of await this.ofertas.adjuntos(r.sesion, r.oferente, { soloAnexo1, pausaMs, maxAdministrativos })) {
+        out.push({ ...a, origen: 'OFERTA', proveedorRut });
+      }
+    }
+    return out;
+  }
+
   private guardarDocumento(d: {
     procesoCodigo: string; idExterno: string; nombre: string; tipoAnexo: string | null; estado: 'DESCARGADO' | 'OMITIDO' | 'ERROR';
+    origen: 'BASES' | 'OFERTA' | 'COTIZACION'; proveedorRut: string | null;
     mime?: string | null; tamanoBytes?: number; sha256?: string; rutaAlmacen?: string; descargadoAt?: Date; error?: string | null;
   }) {
     const { procesoCodigo, idExterno, ...resto } = d;

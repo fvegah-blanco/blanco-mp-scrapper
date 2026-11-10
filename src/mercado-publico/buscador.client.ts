@@ -53,6 +53,7 @@ export interface CaBuscador {
 }
 
 export interface CotizacionFicha {
+  id_cotizacion?: number;
   rut_proveedor: string;
   razon_social: string;
   proveedor_seleccionado: number;
@@ -127,9 +128,12 @@ export class BuscadorClient {
     return r.payload;
   }
 
-  async fichaCompraAgil(codigo: string): Promise<FichaCompraAgil | null> {
+  async fichaCompraAgil(codigo: string, rapido = false): Promise<FichaCompraAgil | null> {
     const qs = new URLSearchParams({ action: 'ficha', code: codigo.toUpperCase() });
-    const r = await fetchJsonMp<Respuesta<FichaCompraAgil>>(`${API}/compra-agil?${qs}`, { headers: this.headers });
+    const r = await fetchJsonMp<Respuesta<FichaCompraAgil>>(
+      `${API}/compra-agil?${qs}`,
+      rapido ? { headers: this.headers, reintentos: 0, timeoutMs: 35_000 } : { headers: this.headers },
+    );
     return r.payload && typeof r.payload === 'object' && 'codigo' in r.payload ? r.payload : null;
   }
 }

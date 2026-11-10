@@ -68,6 +68,7 @@ export class MatchCompraAgilService {
     // En el ciclo de tiempo real (ids) no se busca por palabras: es lenta y la hace el cron de pendientes.
     const conBusqueda = !ids && (await this.configuracion.get('match_compra_agil.busqueda_por_palabras'));
     let busquedasRestantes = await this.configuracion.get('match_compra_agil.lote_busquedas');
+    const limiteBusquedas = Date.now() + (await this.configuracion.get('match_compra_agil.presupuesto_segundos')) * 1000;
 
     const ordenes: OcSinProceso[] = await this.prisma.ordenCompra.findMany({
       where: { tipo: 'AG', procesoCodigo: null, matchIntentos: { lt: maxIntentos }, ...(ids ? { id: { in: ids } } : {}) },
@@ -85,7 +86,7 @@ export class MatchCompraAgilService {
       try {
         let codigo = codigoCompraAgilEnTexto(oc.nombre, oc.descripcion);
         if (codigo) porTexto++;
-        else if (conBusqueda && busquedasRestantes > 0) {
+        else if (conBusqueda && busquedasRestantes > 0 && Date.now() < limiteBusquedas) {
           busquedasRestantes--;
           codigo = await this.buscarPorPalabras(oc);
           if (codigo) porBusqueda++;
@@ -165,7 +166,7 @@ export class MatchCompraAgilService {
     });
     const candidatos = r.resultados.map((c) => c.codigo).filter((c) => c.startsWith(prefijo));
     for (const codigo of candidatos.slice(0, 4)) {
-      const ficha = await this.buscador.fichaCompraAgil(codigo);
+      const ficha = await this.buscador.fichaCompraAgil(codigo, true);
       if (!ficha) continue;
       const idsOc = new Set<number>([
         ...(ficha.id_orden_compra ? [ficha.id_orden_compra] : []),
@@ -241,6 +242,7 @@ export class MatchCompraAgilService {
         montoAdjudicado: c.proveedor_seleccionado === 1 && c.monto_total != null ? String(c.monto_total) : null,
         seleccionada: c.proveedor_seleccionado === 1,
         fechaEnvio: fecha(c.fecha_creacion),
+        idExterno: c.id_cotizacion ? String(c.id_cotizacion) : null,
       }));
     await this.ingesta.upsertOfertas(ofertas);
 

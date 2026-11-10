@@ -101,11 +101,11 @@ export class IngestaRepository {
       this.prisma,
       {
         tabla: 'ofertas',
-        columnas: ['proceso_codigo', 'codigo_item', 'correlativo', 'producto', 'proveedor_rut', 'nombre_oferta', 'estado_oferta', 'cantidad_ofertada', 'monto_unitario', 'valor_total', 'cantidad_adjudicada', 'monto_adjudicado', 'seleccionada', 'fecha_envio'],
+        columnas: ['proceso_codigo', 'codigo_item', 'correlativo', 'producto', 'proveedor_rut', 'nombre_oferta', 'estado_oferta', 'cantidad_ofertada', 'monto_unitario', 'valor_total', 'cantidad_adjudicada', 'monto_adjudicado', 'seleccionada', 'fecha_envio', 'id_externo'],
         conflicto: ['proceso_codigo', 'codigo_item', 'proveedor_rut'],
-        actualizar: { updated_at: 'now()' },
+        actualizar: { updated_at: 'now()', id_externo: 'COALESCE(EXCLUDED."id_externo", "ofertas"."id_externo")' },
       },
-      filas.map((o) => [o.procesoCodigo, o.codigoItem, o.correlativo, o.producto, o.proveedorRut, o.nombreOferta, o.estadoOferta, o.cantidadOfertada, o.montoUnitario, o.valorTotal, o.cantidadAdjudicada, o.montoAdjudicado, o.seleccionada, o.fechaEnvio]),
+      filas.map((o) => [o.procesoCodigo, o.codigoItem, o.correlativo, o.producto, o.proveedorRut, o.nombreOferta, o.estadoOferta, o.cantidadOfertada, o.montoUnitario, o.valorTotal, o.cantidadAdjudicada, o.montoAdjudicado, o.seleccionada, o.fechaEnvio, o.idExterno ?? null]),
     );
   }
 

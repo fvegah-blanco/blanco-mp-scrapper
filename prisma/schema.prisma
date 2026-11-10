@@ -135,6 +135,8 @@ model Oferta {
   montoAdjudicado    Decimal? @map("monto_adjudicado") @db.Decimal(20, 2)
   seleccionada       Boolean  @default(false)
   fechaEnvio         DateTime? @map("fecha_envio") @db.Timestamptz(6)
+  /// Compra ágil: id_cotizacion (sirve para bajar los adjuntos que subió el proveedor).
+  idExterno          String?  @map("id_externo")
   createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt          DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
@@ -251,6 +253,27 @@ model Adjudicacion {
   @@map("adjudicaciones")
 }
 
+enum OrigenDocumento {
+  /// Publicado por el comprador: bases, anexos a llenar, actas.
+  BASES
+  /// Subido por un oferente en el cuadro de ofertas de una licitación.
+  OFERTA
+  /// Adjunto de una cotización de compra ágil.
+  COTIZACION
+
+  @@map("origen_documento")
+}
+
+enum EstadoAnalisisIa {
+  /// No le corresponde (bases, o la IA está apagada).
+  NO_APLICA
+  PENDIENTE
+  OK
+  ERROR
+
+  @@map("estado_analisis_ia")
+}
+
 enum EstadoDocumento {
   PENDIENTE
   DESCARGADO
@@ -284,6 +307,11 @@ model Documento {
   procesoCodigo     String           @map("proceso_codigo")
   /// GUID del adjunto (compra ágil) o "<pagina>#<fila>" (licitación).
   idExterno         String           @map("id_externo")
+  origen            OrigenDocumento  @default(BASES)
+  /// Oferente dueño del documento (OFERTA / COTIZACION). null en las bases.
+  proveedorRut      String?          @map("proveedor_rut")
+  /// Anexo N°1 / formulario de identificación del oferente (por nombre o título).
+  esAnexoIdentificacion Boolean      @default(false) @map("es_anexo_identificacion")
   nombre            String
   tipoAnexo         String?          @map("tipo_anexo")
   mime              String?
@@ -298,6 +326,12 @@ model Documento {
   /// Texto extraído (truncado a TEXTO_MAX_CHARS).
   texto             String?
   extraidoAt        DateTime?        @map("extraido_at") @db.Timestamptz(6)
+  analisisIaEstado  EstadoAnalisisIa @default(NO_APLICA) @map("analisis_ia_estado")
+  /// Respuesta estructurada del modelo (razón social, RUT, contactos).
+  analisisIa        Json?            @map("analisis_ia") @db.JsonB
+  analisisIaModelo  String?          @map("analisis_ia_modelo")
+  analisisIaError   String?          @map("analisis_ia_error")
+  analizadoIaAt     DateTime?        @map("analizado_ia_at") @db.Timestamptz(6)
   createdAt         DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt         DateTime         @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
@@ -306,6 +340,8 @@ model Documento {
   @@unique([procesoCodigo, idExterno])
   @@index([estado])
   @@index([extraccionEstado])
+  @@index([analisisIaEstado])
+  @@index([proveedorRut])
   @@map("documentos")
 }
 
@@ -323,6 +359,8 @@ enum FuenteContacto {
   FICHA_OC
   FICHA_LICITACION
   DOCUMENTO
+  /// Leído por el modelo de Bedrock (Anexo N°1, cotizaciones).
+  DOCUMENTO_IA
 
   @@map("fuente_contacto")
 }

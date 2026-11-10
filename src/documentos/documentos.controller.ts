@@ -1,7 +1,9 @@
 import { BadRequestException, Body, Controller, Param, Post, UseGuards } from '@nestjs/common';
 import { ApiHeader, ApiTags } from '@nestjs/swagger';
 import { AdminKeyGuard } from '../common/admin-key.guard';
+import { AnalisisIaService } from '../extraccion/analisis-ia.service';
 import { ExtraccionService } from '../extraccion/extraccion.service';
+import { PrismaService } from '../prisma/prisma.service';
 import { AdjuntosService } from './adjuntos.service';
 
 @ApiTags('Documentos')
@@ -12,7 +14,19 @@ export class DocumentosController {
   constructor(
     private readonly adjuntos: AdjuntosService,
     private readonly extraccion: ExtraccionService,
+    private readonly analisisIa: AnalisisIaService,
+    private readonly prisma: PrismaService,
   ) {}
+
+  /** Manda un documento a Bedrock ahora (aunque sea de las bases) y devuelve lo que leyó. */
+  @Post(':id/analizar-ia')
+  async analizarIa(@Param('id') id: string) {
+    if (!this.analisisIa.disponible) throw new BadRequestException('Faltan las credenciales BEDROCK_AWS_*');
+    const doc = await this.prisma.documento.findUniqueOrThrow({ where: { id } });
+    const contactos = await this.analisisIa.analizar(doc);
+    const actualizado = await this.prisma.documento.findUniqueOrThrow({ where: { id }, select: { analisisIa: true, analisisIaModelo: true } });
+    return { success: true, contactos, data: actualizado };
+  }
 
   /** Encola la descarga de adjuntos. Body: { codigos: ["799512-11-LE26", "1196-63-COT26"], forzar?: true } */
   @Post('encolar')

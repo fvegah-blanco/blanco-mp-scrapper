@@ -14,6 +14,8 @@ Misma arquitectura que el back office: **NestJS 11 + Prisma 7 + Postgres**, con 
 | 4. Cruce OC ↔ compra ágil | Nombre de la OC + buscador de compra ágil | `compra-agil-match` (cada 15 min, pendientes) | Código COT, cotizaciones (quién ofertó, cuánto, quién ganó) |
 | 5. Adjuntos | Licitación: ficha + postback `VerAntecedentes.aspx`. Compra ágil: `adjunto.mercadopublico.cl` | `adjuntos-descarga` (cada 15 min) | Bases, anexos y actas en S3 o disco |
 | 6. Texto, OCR y contactos | Los adjuntos descargados | `documentos-extraccion` (cada 10 min) | Texto (PDF, Word, Excel, ZIP; OCR de escaneados e imágenes) y contactos con rol |
+| 7. Documentos del adjudicado | Licitación: Cuadro de Ofertas → Anexo N°1 del oferente. Compra ágil: adjuntos de la cotización ganadora | dentro de `adjuntos-descarga` | El formulario donde el vendedor deja su representante legal y su contacto |
+| 8. Lectura con Bedrock | Documentos del oferente (no las bases) | `documentos-analisis-ia` (cada 10 min) | Razón social, RUT y contactos del vendedor, aunque el formato varíe o sea un escaneo |
 
 Todo sin navegador: lo que licitamatch hacía con Playwright (anexos de licitación) aquí es un POST con el `__VIEWSTATE` de la página.
 
@@ -25,6 +27,16 @@ Todo sin navegador: lo que licitamatch hacía con Playwright (anexos de licitaci
 - **El buscador** (`api.buscador.mercadopublico.cl`) usa la api-key pública de su bundle, no tiene cuota diaria, corta a los 29 s y tope de 10.000 resultados por búsqueda. La búsqueda de compra ágil por palabras suele dar 504: se hace con un solo intento y fuera del ciclo de tiempo real.
 - **OC de licitación (SE/CC).** La ficha trae el código de la licitación aunque el buscador no lo informe.
 
+## Documentos del vendedor y Bedrock
+
+Idea tomada de `sii_situacion_tributaria` (Seba): **el contacto del vendedor está en el Anexo N°1 / Formulario de identificación del oferente**, y su formato cambia tanto entre organismos que el regex resolvía 1 de 5 y un modelo con visión 5 de 5.
+
+- **Licitación** (`src/mercado-publico/ofertas.client.ts`): Ficha → Cuadro de Ofertas → `OpeningHeader` → `SupplySummary` con el buscador por RUT (la tabla de oferentes pagina) → `ViewBidAttachment` (grilla de a 6, paginada) → se lista todo sin bajar y se descarga solo lo que parece Anexo N°1. Como ya sabemos qué licitación ganó cada proveedor, no se pasa por el portal de Contratos.
+- **Compra ágil**: la ficha trae `id_cotizacion` por cotización, y `adjunto.mercadopublico.cl/.../cotizacion/listar/{id}` devuelve los archivos que subió el proveedor (cotización con membrete, patente).
+- **Bedrock** (`src/extraccion/analisis-ia.service.ts`): Haiku 4.5 por Converse, igual que el back office. Recibe el texto extraído como fuente fiel y las primeras páginas como imagen, y devuelve JSON con esquema (razón social, RUT, contactos con rol). Si el correo no aparece en el texto, se baja la confianza. Solo pasan los documentos del oferente; con la IA activa, el regex no guarda contactos de esos documentos.
+- **Medido**: los 5 Anexos N°1 de ejemplo de Seba (formatos distintos) dieron 5 de 5 con el RUT correcto y 2–4 contactos cada uno, ~3 s por documento. Anexo N°1 real de `799512-11-LE26`: representante, cargo, correo y teléfono del adjudicado.
+- **Baneo**: el portal de licitaciones banea por IP pasado cierto volumen. Hay `adjuntos.pausa_ms` entre requests y un 403 corta la corrida (se retoma en la siguiente). Como aquí solo se bajan los adjudicados en tiempo real (no los ~10 mil proveedores de una vez), no debería hacer falta proxy; si se hace un barrido histórico, sí.
+
 ## Modelo de datos
 
 | Tabla | Qué guarda |
@@ -35,7 +47,7 @@ Todo sin navegador: lo que licitamatch hacía con Playwright (anexos de licitaci
 | `ordenes_compra` / `orden_compra_items` | OC (ID numérico de MP como PK) y sus líneas; `proceso_codigo` la amarra a su proceso |
 | `adjudicaciones` | Quién se adjudicó cada proceso, con la OC que lo materializa y el origen del dato |
 | `v_adjudicaciones` (vista) | Adjudicación + enlace al proceso + comprador + proveedor + OC |
-| `documentos` | Adjuntos: hash, ruta (S3/disco), texto extraído y método (TEXTO/OCR) |
+| `documentos` | Adjuntos: origen (BASES/OFERTA/COTIZACION), oferente dueño, hash, ruta, texto, método (TEXTO/OCR) y análisis IA |
 | `contactos` | Correo/teléfono con `rol` (COMPRADOR = deudor, PROVEEDOR = vendedor), RUT, fuente, evidencia y confianza |
 | `archivos_masivos` | Estado de cada mes del backfill (ETag, filas, errores) |
 | `configuraciones` | Parámetros vivos y marcas de agua de los crons |
@@ -74,7 +86,8 @@ curl -X POST localhost:4500/api/datos-abiertos/importar-local \
 - `GET /configuracion` · `PATCH /configuracion/:clave` (`{"valor": ...}`) · `DELETE /configuracion/:clave`
 - `GET /datos-abiertos/estado` · `GET /datos-abiertos/archivos` · `POST /datos-abiertos/archivos/:tipo/:anio/:mes[?forzar=true]` · `POST /datos-abiertos/importar-local`
 - `POST /tiempo-real/ordenes/:codigo/cruzar`
-- `POST /documentos/encolar` · `POST /documentos/procesos/:codigo/descargar` · `POST /documentos/:id/extraer` · `POST /documentos/procesos/:codigo/reanalizar`
+- `POST /documentos/encolar` · `POST /documentos/procesos/:codigo/descargar` · `POST /documentos/:id/extraer` · `POST /documentos/:id/analizar-ia` · `POST /documentos/procesos/:codigo/reanalizar`
+- `POST /tiempo-real/compras-agiles/:codigo/ficha`
 - `GET /consultas/resumen` · `GET /consultas/adjudicaciones` · `GET /consultas/empresas/:rut` · `GET /consultas/procesos/:codigo` · `GET /consultas/contactos`
 
 ## Parámetros vivos (los principales)
@@ -87,6 +100,10 @@ curl -X POST localhost:4500/api/datos-abiertos/importar-local \
 | `adjuntos.auto_encolar_adjudicados` | true | Bajar los adjuntos de todo proceso adjudicado **en tiempo real** (el backfill no encola) |
 | `match_compra_agil.busqueda_por_palabras` | true | Respaldo por buscador cuando la OC no trae el COT |
 | `extraccion.ocr_max_paginas` | 15 | Páginas de un escaneado que pasan por OCR |
+| `adjuntos.documentos_adjudicado` | true | Bajar el Anexo N°1 / cotización del adjudicado |
+| `adjuntos.pausa_ms` | 400 | Pausa entre requests al portal (anti-baneo) |
+| `bedrock.habilitado` / `bedrock.lote` | true / 20 | Lectura con IA y tope por corrida (costo) |
+| `match_compra_agil.presupuesto_segundos` | 240 | Tiempo máximo por corrida para el cruce por palabras |
 
 La lista completa está en `src/configuracion/parametros.ts` y en la pestaña Parámetros del panel.
 
@@ -99,7 +116,7 @@ La lista completa está en `src/configuracion/parametros.ts` y en la pestaña Pa
 
 ## Pendiente / siguientes pasos
 
-- **Ofertas de los oferentes en licitaciones.** Los anexos que baja hoy son los del comprador (bases y formularios). Los anexos que sube cada oferente (Anexo 1 "Identificación del oferente", con contacto del vendedor) están en el cuadro de ofertas de la ficha. Es el siguiente scraper a agregar con el mismo patrón de postback.
 - **Paginación de la página de anexos.** Una licitación con muchos anexos puede paginar la grilla; hoy se lee la primera página de cada `VerAntecedentes`.
-- **Extracción con LLM.** El extractor de contactos es heurístico. Se le puede agregar Bedrock (como el document-analyzer del back office) para los casos `DESCONOCIDO`.
+- **SII**: el proyecto de Seba también enriquece cada RUT con su situación tributaria (zeus.sii.cl). Se puede sumar como otro cron sobre `empresas`.
+- **Reintento de documentos con error de IA**: hoy quedan en `ERROR`; se reprocesan con `POST /documentos/:id/analizar-ia`.
 - **Panel en el back office.** El panel estático (`public/index.html`) cubre la administración; si se integra a `backoffice-fe`, la API ya tiene el mismo contrato de `/cron-jobs`.

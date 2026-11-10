@@ -51,6 +51,8 @@ export interface OfertaReg {
   montoAdjudicado: string | null;
   seleccionada: boolean;
   fechaEnvio: Date | null;
+  /** Compra ágil: id_cotizacion. */
+  idExterno?: string | null;
 }
 
 export interface OrdenReg {

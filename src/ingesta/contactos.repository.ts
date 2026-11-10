@@ -62,10 +62,12 @@ export class ContactosRepository {
           nombre: `COALESCE("${t}"."nombre", EXCLUDED."nombre")`,
           cargo: `COALESCE("${t}"."cargo", EXCLUDED."cargo")`,
           confianza: `GREATEST("${t}"."confianza", EXCLUDED."confianza")`,
+          // Si la IA confirma un dato que ya vio el regex, queda como fuente la IA (más completa).
+          fuente: `CASE WHEN EXCLUDED."fuente" = 'DOCUMENTO_IA' THEN EXCLUDED."fuente" ELSE "${t}"."fuente" END`,
           veces_visto: `"${t}"."veces_visto" + 1`,
           ultima_vez_visto: 'now()',
         },
-        noActualizar: ['rut', 'rol', 'email', 'telefono', 'fuente', 'proceso_codigo', 'orden_compra_id', 'documento_id', 'evidencia'],
+        noActualizar: ['rut', 'rol', 'email', 'telefono', 'proceso_codigo', 'orden_compra_id', 'documento_id', 'evidencia'],
       },
       [...filas.values()],
     );

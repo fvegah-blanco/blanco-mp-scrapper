@@ -84,6 +84,29 @@ export class AdjuntosClient {
       }));
   }
 
+  /** Adjuntos que subió el proveedor en su cotización de compra ágil (por id_cotizacion de la ficha). */
+  async listarCotizacion(idCotizacion: string, proveedorRut: string): Promise<AdjuntoRemoto[]> {
+    const r = await fetchJsonMp<{ payload?: { files?: Array<{ id: string; nombreArchivo?: string }> } }>(
+      `${ADJUNTOS_CA}/cotizacion/listar/${encodeURIComponent(idCotizacion)}`,
+      { headers: this.headersCa },
+    );
+    return (r.payload?.files ?? [])
+      .filter((f) => f.id)
+      .map((f) => ({
+        idExterno: `cotizacion#${proveedorRut}#${f.id}`,
+        nombre: f.nombreArchivo ?? 'cotizacion',
+        tipoAnexo: 'Cotización del proveedor',
+        descargar: async () => {
+          const res = await fetchMp(`${ADJUNTOS_CA}/descargar/${f.id}`, { headers: this.headersCa, timeoutMs: 120_000 });
+          return {
+            contenido: Buffer.from(await res.arrayBuffer()),
+            mime: res.headers.get('content-type'),
+            nombre: nombreDeDisposition(res.headers.get('content-disposition')),
+          };
+        },
+      }));
+  }
+
   async listarLicitacion(codigo: string): Promise<AdjuntoRemoto[]> {
     const sesion = new SesionWeb(120_000);
     const { html: ficha, url: urlFicha } = await sesion.html(FICHA_LIC + encodeURIComponent(codigo));

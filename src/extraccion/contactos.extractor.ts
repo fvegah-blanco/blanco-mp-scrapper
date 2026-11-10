@@ -7,6 +7,8 @@ export interface ContextoProceso {
   compradorRut: string | null;
   compradorNombre: string | null;
   proveedores: Array<{ rut: string; nombre: string | null; adjudicado: boolean }>;
+  /** Oferente que subió el documento (Anexo N°1, cotización). null en las bases del comprador. */
+  duenoRut?: string | null;
 }
 
 export interface ContactoEncontrado {
@@ -23,7 +25,7 @@ export interface ContactoEncontrado {
 const RE_EMAIL = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
 // +56 9 1234 5678 · (56-2) 2576 7296 · 56-2-25767296 · 9 8765 4321 · 22 576 7296. El
 // patrón es amplio a propósito: normalizarTelefono descarta lo que no da 9 dígitos chilenos.
-const RE_TELEFONO = /(?:\+?\(?56\)?[\s.-]*)?(?:\(?\d{1,2}\)?[\s.-]*)?\d{3,4}[\s.-]?\d{4}\b/g;
+const RE_TELEFONO = /(?:\+?\(?56\)?[\s.-]*)?(?:\(?\d{1,2}\)?[\s.-]*)?\d{3,4}[\s.-]{0,2}\d{4}\b/g;
 const RE_RUT = /\b\d{1,2}\.?\d{3}\.?\d{3}-[\dkK]\b/g;
 
 const IGNORAR_DOMINIOS = ['mercadopublico.cl', 'chilecompra.cl', 'example.com', 'dominio.cl', 'correo.cl'];
@@ -107,7 +109,11 @@ function rolPorPalabras(texto: string, pos: number, radio = 350): { rol: RolCont
 export function extraerContactos(texto: string, ctx: ContextoProceso): ContactoEncontrado[] {
   if (!texto) return [];
   const hallazgos: Hallazgo[] = [];
-  for (const m of texto.matchAll(RE_EMAIL)) {
+  // Correos con tilde ("atenciónalcliente@...") existen en los documentos: se buscan sin
+  // tildes. Quitar las marcas tras NFD deja el mismo largo, así que las posiciones calzan.
+  const sinMarcas = texto.normalize('NFC').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const base = sinMarcas.length === texto.length ? sinMarcas : texto;
+  for (const m of base.matchAll(RE_EMAIL)) {
     const email = normalizarEmail(m[0]);
     if (!email || IGNORAR_DOMINIOS.some((d) => email.endsWith(d))) continue;
     hallazgos.push({ tipo: 'email', valor: email, pos: m.index ?? 0 });
@@ -194,6 +200,13 @@ export function extraerContactos(texto: string, ctx: ContextoProceso): ContactoE
         rut = adjudicados[0].rut;
         confianza = 0.35;
       }
+    }
+
+    // En un documento subido por un oferente, lo que no tiene otra señal es del oferente.
+    if (rol === 'DESCONOCIDO' && ctx.duenoRut) {
+      rol = 'PROVEEDOR';
+      rut = ctx.duenoRut;
+      confianza = 0.5;
     }
 
     const clave = `${rol}|${email ?? ''}|${telefono ?? ''}`;

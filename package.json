@@ -21,6 +21,7 @@
     "postinstall": "prisma generate"
   },
   "dependencies": {
+    "@ai-sdk/amazon-bedrock": "^4.0.213",
     "@aws-sdk/client-s3": "^3.1165.0",
     "@napi-rs/canvas": "^1.1.0",
     "@nestjs/common": "^11.2.9",
@@ -31,6 +32,7 @@
     "@nestjs/swagger": "^11.4.8",
     "@prisma/adapter-pg": "^7.10.0",
     "@prisma/client": "^7.10.0",
+    "ai": "^6.0.328",
     "cheerio": "^1.2.0",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.15.1",
@@ -47,7 +49,8 @@
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2",
     "tesseract.js": "^7.0.0",
-    "yauzl": "^3.4.0"
+    "yauzl": "^3.4.0",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@nestjs/cli": "^11.0.24",

@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
+import { esAnexoIdentificacion } from '../common/anexo1';
 import { getErrorMessage } from '../common/errores';
 import { ConfiguracionService } from '../configuracion/configuracion.service';
 import { StorageService } from '../documentos/storage.service';
@@ -73,6 +74,8 @@ export class ExtraccionService {
     try {
       const contenido = await this.storage.leer(d.rutaAlmacen);
       const r = await this.texto.extraer(contenido, d.nombre, { ocrMaxPaginas, maxChars });
+      // Los documentos del oferente van a Bedrock: ahí está el contacto del vendedor y el formato varía demasiado para el regex.
+      const aIa = d.origen !== 'BASES' && (await this.configuracion.get('bedrock.habilitado'));
       await this.prisma.documento.update({
         where: { id },
         data: {
@@ -80,9 +83,13 @@ export class ExtraccionService {
           metodoExtraccion: r.metodo,
           extraccionEstado: r.texto ? 'OK' : 'SIN_TEXTO',
           extraidoAt: new Date(),
+          esAnexoIdentificacion: esAnexoIdentificacion(d.nombre, r.texto),
+          analisisIaEstado: aIa ? 'PENDIENTE' : 'NO_APLICA',
         },
       });
-      const n = r.texto ? await this.contactosDeTexto(d.id, d.procesoCodigo, r.texto) : 0;
+      // Si el documento va a la IA, el regex no guarda nada: en los formularios del oferente arma
+      // pares nombre–correo equivocados. Queda como respaldo con la IA apagada (o con /reanalizar).
+      const n = r.texto && !aIa ? await this.contactosDeTexto(d.id, d.procesoCodigo, r.texto, d.proveedorRut) : 0;
       return { texto: Boolean(r.texto), contactos: n };
     } catch (error) {
       await this.prisma.documento.update({
@@ -98,15 +105,15 @@ export class ExtraccionService {
   async reanalizar(procesoCodigo: string): Promise<number> {
     const docs = await this.prisma.documento.findMany({
       where: { procesoCodigo, extraccionEstado: 'OK' },
-      select: { id: true, texto: true },
+      select: { id: true, texto: true, proveedorRut: true },
     });
     let total = 0;
-    for (const d of docs) if (d.texto) total += await this.contactosDeTexto(d.id, procesoCodigo, d.texto);
+    for (const d of docs) if (d.texto) total += await this.contactosDeTexto(d.id, procesoCodigo, d.texto, d.proveedorRut);
     return total;
   }
 
-  private async contactosDeTexto(documentoId: string, procesoCodigo: string, texto: string): Promise<number> {
-    const ctx = await this.contexto(procesoCodigo);
+  private async contactosDeTexto(documentoId: string, procesoCodigo: string, texto: string, duenoRut: string | null): Promise<number> {
+    const ctx = { ...(await this.contexto(procesoCodigo)), duenoRut };
     const encontrados = extraerContactos(texto, ctx);
     await this.contactos.guardar(
       encontrados.map((c) => ({ ...c, fuente: 'DOCUMENTO' as const, procesoCodigo, documentoId })),

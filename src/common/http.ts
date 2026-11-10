@@ -61,7 +61,16 @@ export async function fetchJsonMp<T>(url: string, opciones: OpcionesFetch = {}):
   const { reintentos = 3, ...resto } = opciones;
   let ultimo: unknown;
   for (let intento = 0; intento <= reintentos; intento++) {
-    const res = await fetchMp(url, { ...resto, reintentos: Math.min(1, reintentos) });
+    let res: Response;
+    try {
+      res = await fetchMp(url, { ...resto, reintentos: 0 });
+    } catch (error) {
+      // 504/timeout del gateway: se reintenta con backoff; un 4xx definitivo no.
+      ultimo = error instanceof Error ? error.message : error;
+      if ((error as { definitivo?: boolean }).definitivo || intento >= reintentos) throw error;
+      await esperar(2_000 * 2 ** intento);
+      continue;
+    }
     const textoCuerpo = await res.text();
     // La ficha de un código que no existe responde 200 con cuerpo vacío.
     if (!textoCuerpo.trim()) return {} as T;
