@@ -3,381 +3,485 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>MP Scrapper</title>
+<title>MP Scrapper · Blanco</title>
+<link rel="icon" href="logo-bf.svg" type="image/svg+xml" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
 <style>
-  /* Tokens del back office de Blanco (app/globals.css), claro y oscuro. */
+  /* Tokens de backoffice-fe/app/globals.css (HSL), claro y oscuro. */
   :root {
-    --bg: #ffffff; --surface: #f6f7f9; --card: #ffffff; --ink: #151928; --muted: #5c6170;
-    --border: #e4e7ec; --primary: #3236c7; --on-primary: #ffffff; --primary-soft: #eceefe;
-    --ok: #047857; --ok-soft: #e6f6ef; --warn: #92560a; --warn-soft: #fdf3e2; --err: #c81e1e; --err-soft: #fdecec;
-    --info: #3236c7; --info-soft: #eceefe; --focus: #3236c7;
+    --background: 0 0% 100%; --foreground: 226 32% 12%; --card: 0 0% 100%;
+    --muted: 240 6% 96%; --muted-foreground: 224 8% 40%; --border: 220 13% 91%;
+    --action: 238 63% 49%; --action-hover: 238 61% 54%; --link: 238 63% 49%; --ring: 238 63% 49%;
+    --brand-signal: 14 82% 51%;
+    --destructive-soft: 0 84% 95%; --destructive-text: 0 74% 42%;
+    --warning-soft: 41 94% 93%; --warning-text: 34 87% 32%;
+    --success-soft: 154 47% 93%; --success-text: 163 94% 24%;
+    --info-soft: 238 80% 96%; --info-text: 238 63% 45%;
+    --sidebar: 240 8% 97%; --sidebar-foreground: 224 8% 40%; --sidebar-accent: 240 6% 94%; --sidebar-border: 220 13% 91%;
+    --logo-filter: none;
     color-scheme: light;
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
-      --bg: #10131c; --surface: #151925; --card: #191d29; --ink: #eceef7; --muted: #c4cbdf;
-      --border: #2c3243; --primary: #a4a7ff; --on-primary: #10131c; --primary-soft: #262a4a;
-      --ok: #5cd7ab; --ok-soft: #173229; --warn: #edbc69; --warn-soft: #362a14; --err: #f08a95; --err-soft: #3a1c22;
-      --info: #a4a7ff; --info-soft: #262a4a; --focus: #a4a7ff;
+      --background: 225 27% 9%; --foreground: 229 41% 95%; --card: 225 24% 13%;
+      --muted: 226 23% 18%; --muted-foreground: 224 30% 82%; --border: 224 21% 22%;
+      --action: 238 79% 64%; --action-hover: 238 87% 70%; --link: 238 100% 82%; --ring: 238 100% 82%;
+      --brand-signal: 15 100% 72%;
+      --destructive-soft: 338 23% 18%; --destructive-text: 0 100% 81%;
+      --warning-soft: 33 27% 17%; --warning-text: 37 76% 71%;
+      --success-soft: 168 38% 15%; --success-text: 156 63% 68%;
+      --info-soft: 236 30% 20%; --info-text: 238 100% 85%;
+      --sidebar: 224 26% 11%; --sidebar-foreground: 224 30% 82%; --sidebar-accent: 226 23% 18%; --sidebar-border: 224 21% 22%;
+      --logo-filter: invert(1);
       color-scheme: dark;
     }
   }
   :root[data-theme="dark"] {
-    --bg: #10131c; --surface: #151925; --card: #191d29; --ink: #eceef7; --muted: #c4cbdf;
-    --border: #2c3243; --primary: #a4a7ff; --on-primary: #10131c; --primary-soft: #262a4a;
-    --ok: #5cd7ab; --ok-soft: #173229; --warn: #edbc69; --warn-soft: #362a14; --err: #f08a95; --err-soft: #3a1c22;
-    --info: #a4a7ff; --info-soft: #262a4a; --focus: #a4a7ff;
+    --background: 225 27% 9%; --foreground: 229 41% 95%; --card: 225 24% 13%;
+    --muted: 226 23% 18%; --muted-foreground: 224 30% 82%; --border: 224 21% 22%;
+    --action: 238 79% 64%; --action-hover: 238 87% 70%; --link: 238 100% 82%; --ring: 238 100% 82%;
+    --brand-signal: 15 100% 72%;
+    --destructive-soft: 338 23% 18%; --destructive-text: 0 100% 81%;
+    --warning-soft: 33 27% 17%; --warning-text: 37 76% 71%;
+    --success-soft: 168 38% 15%; --success-text: 156 63% 68%;
+    --info-soft: 236 30% 20%; --info-text: 238 100% 85%;
+    --sidebar: 224 26% 11%; --sidebar-foreground: 224 30% 82%; --sidebar-accent: 226 23% 18%; --sidebar-border: 224 21% 22%;
+    --logo-filter: invert(1);
     color-scheme: dark;
   }
   * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
-  header { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid var(--border); background: var(--card); }
-  header h1 { margin: 0; font-size: 17px; }
-  header .sub { color: var(--muted); font-size: 12px; }
-  .controles { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-  input, select { font: inherit; color: var(--ink); background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 6px 9px; }
-  input:focus-visible, select:focus-visible, button:focus-visible, a:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
-  button { font: inherit; cursor: pointer; border-radius: 8px; padding: 6px 11px; border: 1px solid var(--border); background: var(--card); color: var(--ink); }
-  button:hover { background: var(--surface); }
-  button.primario { background: var(--primary); color: var(--on-primary); border-color: var(--primary); font-weight: 600; }
-  button.primario:hover { filter: brightness(1.08); }
-  button:disabled { opacity: .55; cursor: default; }
-  nav { display: flex; gap: 4px; padding: 0 16px; border-bottom: 1px solid var(--border); background: var(--card); overflow-x: auto; position: sticky; top: 0; z-index: 2; }
-  nav button { border: 0; border-bottom: 2px solid transparent; border-radius: 0; padding: 10px 12px; background: none; color: var(--muted); white-space: nowrap; }
-  nav button[aria-selected="true"] { color: var(--primary); border-bottom-color: var(--primary); font-weight: 600; }
-  main { padding: 16px; max-width: 1280px; margin: 0 auto; }
-  section[hidden] { display: none; }
-  h2 { font-size: 15px; margin: 4px 0 12px; }
-  .tarjetas { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px; margin-bottom: 18px; }
-  .tarjeta { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; }
-  .tarjeta .k { color: var(--muted); font-size: 12px; }
-  .tarjeta .v { font-size: 22px; font-weight: 650; margin-top: 2px; font-variant-numeric: tabular-nums; }
-  .tarjeta .d { color: var(--muted); font-size: 12px; margin-top: 4px; }
-  .tabla { width: 100%; overflow-x: auto; background: var(--card); border: 1px solid var(--border); border-radius: 12px; }
-  table { border-collapse: collapse; width: 100%; min-width: 640px; }
-  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
-  th { font-size: 12px; color: var(--muted); font-weight: 600; background: var(--surface); }
+  html, body { height: 100%; margin: 0; }
+  body { background: hsl(var(--background)); color: hsl(var(--foreground)); font: 14px/20px Geist, Inter, system-ui, -apple-system, sans-serif; -webkit-font-smoothing: antialiased; display: flex; overflow: hidden; }
+  svg.i { width: 16px; height: 16px; flex-shrink: 0; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  button, input, select { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; border-radius: 6px; }
+
+  /* ── Sidebar (components/sidebar.tsx) ─────────────────────────────── */
+  aside { width: 240px; height: 100vh; flex-shrink: 0; display: flex; flex-direction: column; background: hsl(var(--sidebar)); border-right: 1px solid hsl(var(--sidebar-border)); transition: width .2s ease; }
+  aside.plegado { width: 64px; }
+  .sb-cabecera { height: 64px; display: flex; align-items: center; gap: 12px; padding: 0 16px; border-bottom: 1px solid hsl(var(--sidebar-border) / .5); }
+  .sb-boton { width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: 6px; background: transparent; color: hsl(var(--muted-foreground)); cursor: pointer; flex-shrink: 0; }
+  .sb-boton:hover { background: hsl(var(--sidebar-accent)); color: hsl(var(--foreground)); }
+  .sb-marca { min-width: 0; overflow: hidden; white-space: nowrap; transition: opacity .2s; }
+  .sb-marca img { display: block; width: 100px; height: auto; margin-bottom: 2px; filter: var(--logo-filter); }
+  .sb-marca p { margin: 0; font-size: 12px; line-height: 16px; color: hsl(var(--muted-foreground)); }
+  .sb-isotipo { display: none; width: 28px; height: 28px; filter: var(--logo-filter); }
+  aside.plegado .sb-marca, aside.plegado .fade { opacity: 0; width: 0; pointer-events: none; }
+  aside.plegado .sb-isotipo { display: block; }
+  aside.plegado .sb-cabecera { justify-content: center; padding: 0; }
+  aside.plegado #plegar { display: none; }
+  nav { flex: 1; overflow-y: auto; padding: 8px 16px; }
+  aside.plegado nav { padding: 8px 16px; }
+  .sb-seccion { position: relative; height: 32px; display: flex; align-items: center; padding: 0 8px; }
+  .sb-seccion span { font-size: 12px; font-weight: 500; text-transform: uppercase; letter-spacing: .05em; color: hsl(var(--muted-foreground)); white-space: nowrap; transition: opacity .2s; }
+  aside.plegado .sb-seccion::before { content: ""; position: absolute; left: 8px; right: 8px; top: 50%; height: 1px; background: hsl(var(--sidebar-border)); }
+  .sb-item { display: flex; align-items: center; gap: 12px; height: 32px; padding: 0 8px; margin-bottom: 1px; border-radius: 6px; font-size: 14px; font-weight: 500; color: hsl(var(--muted-foreground)); text-decoration: none; white-space: nowrap; overflow: hidden; transition: background .2s, color .2s; }
+  .sb-item:hover { background: hsl(var(--sidebar-accent)); color: hsl(var(--foreground)); }
+  .sb-item[aria-current="page"] { color: hsl(var(--foreground)); font-weight: 600; box-shadow: inset 2px 0 0 hsl(var(--brand-signal)); }
+  .sb-item .fade { transition: opacity .2s; flex: 1; overflow: hidden; text-overflow: ellipsis; }
+  aside.plegado .sb-item { gap: 0; }
+  .sb-pie { border-top: 1px solid hsl(var(--sidebar-border) / .5); padding: 8px 16px 12px; }
+  .sb-pie .sb-item { cursor: pointer; border: 0; background: transparent; width: 100%; text-align: left; }
+  .sb-llave { margin: 4px 0 0; }
+  .sb-llave input { width: 100%; height: 32px; padding: 0 8px; border: 1px solid hsl(var(--border)); border-radius: 6px; background: hsl(var(--background)); font-size: 13px; }
+  aside.plegado .sb-llave { display: none; }
+
+  /* ── Contenido (ListPageShell + PageHeader) ───────────────────────── */
+  main { flex: 1; min-width: 0; height: 100vh; overflow-y: auto; }
+  .pagina { max-width: 1152px; margin: 0 auto; padding: 24px; }
+  .encabezado { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; border-bottom: 1px solid hsl(var(--border)); padding-bottom: 16px; margin-bottom: 16px; }
+  .encabezado .titulo { display: flex; align-items: center; gap: 12px; min-width: 0; }
+  .icono-caja { width: 36px; height: 36px; display: inline-flex; align-items: center; justify-content: center; border-radius: 6px; background: hsl(var(--muted)); color: hsl(var(--foreground)); flex-shrink: 0; }
+  h1 { margin: 0; font-size: 24px; line-height: 32px; font-weight: 600; letter-spacing: -.025em; }
+  .descripcion { margin: 2px 0 0; font-size: 14px; color: hsl(var(--muted-foreground)); }
+  .acciones { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .filtros { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+  .filtros input, .filtros select, .campo { height: 36px; padding: 0 12px; border: 1px solid hsl(var(--border)); border-radius: 6px; background: hsl(var(--background)); font-size: 14px; }
+
+  /* Botones (components/ui/button.tsx) */
+  .btn { display: inline-flex; align-items: center; gap: 8px; height: 32px; padding: 0 12px; border-radius: 6px; font-size: 14px; font-weight: 500; cursor: pointer; border: 1px solid hsl(var(--border)); background: hsl(var(--background)); color: hsl(var(--foreground)); white-space: nowrap; }
+  .btn:hover { background: hsl(var(--muted)); }
+  .btn.primario { background: hsl(var(--action)); border-color: transparent; color: #fff; }
+  .btn.primario:hover { background: hsl(var(--action-hover)); }
+  .btn.fantasma { border-color: transparent; background: transparent; padding: 0 8px; }
+  .btn.fantasma:hover { background: hsl(var(--muted)); }
+  .btn:disabled { opacity: .5; cursor: default; }
+
+  /* Tarjetas KPI */
+  .kpis { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+  .kpi { border: 1px solid hsl(var(--border)); border-radius: 12px; background: hsl(var(--card)); padding: 16px; }
+  .kpi .k { font-size: 12px; line-height: 16px; color: hsl(var(--muted-foreground)); font-weight: 500; }
+  .kpi .v { font-size: 24px; line-height: 32px; font-weight: 600; letter-spacing: -.02em; margin-top: 4px; font-variant-numeric: tabular-nums; }
+  .kpi .d { font-size: 12px; line-height: 16px; color: hsl(var(--muted-foreground)); margin-top: 4px; }
+
+  /* Tabla (components/ui/table.tsx) */
+  .tabla { border: 1px solid hsl(var(--border)); border-radius: 6px; overflow-x: auto; background: hsl(var(--card)); }
+  table { width: 100%; min-width: 720px; border-collapse: collapse; font-size: 14px; }
+  th { height: 40px; padding: 0 12px; text-align: left; font-weight: 500; color: hsl(var(--muted-foreground)); border-bottom: 1px solid hsl(var(--border)); white-space: nowrap; }
+  td { padding: 10px 12px; border-bottom: 1px solid hsl(var(--border)); vertical-align: top; }
   tr:last-child td { border-bottom: 0; }
-  td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
-  .muted { color: var(--muted); }
-  .chip { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; }
-  .chip.ok { background: var(--ok-soft); color: var(--ok); }
-  .chip.warn { background: var(--warn-soft); color: var(--warn); }
-  .chip.err { background: var(--err-soft); color: var(--err); }
-  .chip.info { background: var(--info-soft); color: var(--info); }
-  .chip.neutro { background: var(--surface); color: var(--muted); border: 1px solid var(--border); }
-  a { color: var(--primary); text-decoration: none; }
-  a:hover { text-decoration: underline; }
-  .acciones { display: flex; gap: 6px; flex-wrap: wrap; }
-  .meses { display: grid; grid-template-columns: 70px repeat(12, minmax(56px, 1fr)); gap: 6px; align-items: center; min-width: 820px; }
-  .mes { border: 1px solid var(--border); border-radius: 8px; padding: 6px; text-align: center; font-size: 12px; background: var(--card); }
-  .mes b { display: block; font-size: 11px; }
-  .mes.OK { background: var(--ok-soft); color: var(--ok); border-color: transparent; }
-  .mes.ERROR { background: var(--err-soft); color: var(--err); border-color: transparent; }
-  .mes.PROCESANDO, .mes.DESCARGANDO { background: var(--info-soft); color: var(--info); border-color: transparent; }
-  .mes.FALTA, .mes.PENDIENTE { color: var(--muted); }
-  .mes button { margin-top: 4px; padding: 2px 6px; font-size: 11px; }
-  .aviso { padding: 10px 12px; border-radius: 10px; background: var(--info-soft); color: var(--ink); margin-bottom: 12px; border: 1px solid var(--border); }
-  .aviso.err { background: var(--err-soft); }
-  .fila { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
-  code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
-  dialog { border: 1px solid var(--border); border-radius: 12px; background: var(--card); color: var(--ink); max-width: min(900px, 94vw); width: 100%; }
-  dialog::backdrop { background: rgb(0 0 0 / .45); }
-  pre { white-space: pre-wrap; word-break: break-word; background: var(--surface); padding: 10px; border-radius: 8px; max-height: 60vh; overflow: auto; }
+  tbody tr:hover { background: hsl(var(--muted) / .5); }
+  .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .sub { display: block; margin-top: 2px; font-size: 12px; line-height: 16px; color: hsl(var(--muted-foreground)); }
   .nowrap { white-space: nowrap; }
-  @media (max-width: 640px) { .tarjeta .v { font-size: 19px; } }
+  code, .mono { font-family: "Geist Mono", ui-monospace, monospace; font-size: 12px; }
+  code { background: hsl(var(--muted)); padding: 2px 6px; border-radius: 4px; }
+  a { color: hsl(var(--link)); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .vacio { padding: 32px; text-align: center; color: hsl(var(--muted-foreground)); }
+
+  /* Badge (components/ui/badge.tsx, variante outline con tono) */
+  .badge { display: inline-flex; align-items: center; border-radius: 6px; border: 1px solid transparent; padding: 1px 8px; font-size: 12px; line-height: 18px; font-weight: 600; white-space: nowrap; }
+  .badge.ok { background: hsl(var(--success-soft)); color: hsl(var(--success-text)); }
+  .badge.warn { background: hsl(var(--warning-soft)); color: hsl(var(--warning-text)); }
+  .badge.err { background: hsl(var(--destructive-soft)); color: hsl(var(--destructive-text)); }
+  .badge.info { background: hsl(var(--info-soft)); color: hsl(var(--info-text)); }
+  .badge.neutro { border-color: hsl(var(--border)); color: hsl(var(--muted-foreground)); }
+
+  /* Grilla de meses del backfill */
+  .meses { display: grid; grid-template-columns: 88px repeat(12, minmax(64px, 1fr)); gap: 6px; min-width: 900px; padding: 12px; }
+  .mes { border: 1px solid hsl(var(--border)); border-radius: 6px; padding: 6px; text-align: center; font-size: 12px; line-height: 16px; }
+  .mes b { display: block; font-weight: 600; }
+  .mes.OK { background: hsl(var(--success-soft)); color: hsl(var(--success-text)); border-color: transparent; }
+  .mes.ERROR { background: hsl(var(--destructive-soft)); color: hsl(var(--destructive-text)); border-color: transparent; }
+  .mes.PROCESANDO, .mes.DESCARGANDO { background: hsl(var(--info-soft)); color: hsl(var(--info-text)); border-color: transparent; }
+  .mes.FALTA, .mes.PENDIENTE { color: hsl(var(--muted-foreground)); }
+  .mes .btn { height: 24px; padding: 0 8px; font-size: 12px; margin-top: 4px; }
+  .cab-mes { text-align: center; font-size: 12px; color: hsl(var(--muted-foreground)); }
+
+  /* Aviso (toast) */
+  #aviso { position: fixed; right: 24px; bottom: 24px; max-width: 420px; padding: 12px 16px; border-radius: 8px; border: 1px solid hsl(var(--border)); background: hsl(var(--card)); box-shadow: 0 8px 24px rgb(0 0 0 / .12); font-size: 14px; z-index: 50; }
+  #aviso.err { background: hsl(var(--destructive-soft)); color: hsl(var(--destructive-text)); border-color: transparent; }
+
+  /* Sheet lateral (historial) y diálogo (horario) */
+  dialog { border: 1px solid hsl(var(--border)); background: hsl(var(--card)); color: hsl(var(--foreground)); padding: 0; }
+  dialog::backdrop { background: rgb(0 0 0 / .5); }
+  dialog.sheet { margin: 0 0 0 auto; height: 100vh; max-height: 100vh; width: min(560px, 100vw); border-width: 0 0 0 1px; }
+  dialog.modal { border-radius: 12px; width: min(440px, 92vw); }
+  .dlg-cab { display: flex; align-items: center; justify-content: space-between; padding: 16px 24px; border-bottom: 1px solid hsl(var(--border)); }
+  .dlg-cab h2 { margin: 0; font-size: 16px; font-weight: 600; }
+  .dlg-cuerpo { padding: 16px 24px; overflow-y: auto; max-height: calc(100vh - 64px); }
+  .dlg-pie { display: flex; justify-content: flex-end; gap: 8px; padding: 0 24px 16px; }
+  .corrida { border: 1px solid hsl(var(--border)); border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; }
+  .corrida .fila { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+  .corrida pre { margin: 6px 0 0; white-space: pre-wrap; word-break: break-word; font-family: "Geist Mono", monospace; font-size: 11px; color: hsl(var(--muted-foreground)); }
+  label.etq { display: block; font-size: 14px; font-weight: 500; margin-bottom: 6px; }
+
+  @media (max-width: 760px) {
+    aside { width: 64px; } aside .sb-marca, aside .fade, aside .sb-llave { opacity: 0; width: 0; display: none; }
+    aside .sb-isotipo { display: block; } aside .sb-cabecera { justify-content: center; padding: 0; } aside #plegar { display: none; }
+    .pagina { padding: 16px; } .encabezado { flex-direction: column; }
+  }
 </style>
 </head>
 <body>
-<header>
-  <div>
-    <h1>MP Scrapper</h1>
-    <div class="sub">Mercado Público: datos abiertos, OC en tiempo real, adjuntos y contactos</div>
-  </div>
-  <div class="controles">
-    <label class="muted" for="llave">Llave</label>
-    <input id="llave" type="password" placeholder="x-admin-key" autocomplete="off" size="14" />
-    <select id="tema" aria-label="Tema">
-      <option value="">Tema del sistema</option>
-      <option value="light">Claro</option>
-      <option value="dark">Oscuro</option>
-    </select>
-    <button id="recargar" type="button">Recargar</button>
-  </div>
-</header>
-<nav role="tablist" aria-label="Secciones">
-  <button role="tab" data-tab="resumen" aria-selected="true">Resumen</button>
-  <button role="tab" data-tab="crons" aria-selected="false">Crons</button>
-  <button role="tab" data-tab="masivo" aria-selected="false">Datos abiertos</button>
-  <button role="tab" data-tab="adjudicaciones" aria-selected="false">Adjudicaciones</button>
-  <button role="tab" data-tab="contactos" aria-selected="false">Contactos</button>
-  <button role="tab" data-tab="parametros" aria-selected="false">Parámetros</button>
-</nav>
-<main>
-  <div id="mensaje" hidden></div>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <!-- Íconos lucide (los mismos del back office), inline para no depender de un CDN -->
+  <symbol id="i-panel-close" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/><path d="m16 15-3-3 3-3"/></symbol>
+  <symbol id="i-panel-open" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/><path d="m14 9 3 3-3 3"/></symbol>
+  <symbol id="i-dashboard" viewBox="0 0 24 24"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></symbol>
+  <symbol id="i-database" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19A9 3 0 0 0 21 19V5"/><path d="M3 12A9 3 0 0 0 21 12"/></symbol>
+  <symbol id="i-award" viewBox="0 0 24 24"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/></symbol>
+  <symbol id="i-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></symbol>
+  <symbol id="i-settings" viewBox="0 0 24 24"><path d="M20 7h-9"/><path d="M14 17H5"/><circle cx="17" cy="17" r="3"/><circle cx="7" cy="7" r="3"/></symbol>
+  <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><polygon points="6 3 20 12 6 21 6 3"/></symbol>
+  <symbol id="i-pause" viewBox="0 0 24 24"><rect x="14" y="4" width="4" height="16" rx="1"/><rect x="6" y="4" width="4" height="16" rx="1"/></symbol>
+  <symbol id="i-history" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></symbol>
+  <symbol id="i-pencil" viewBox="0 0 24 24"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></symbol>
+</svg>
 
-  <section id="resumen" role="tabpanel">
-    <div class="tarjetas" id="tarjetas"></div>
-  </section>
-
-  <section id="crons" role="tabpanel" hidden>
-    <h2>Crons</h2>
-    <p class="muted">Mismo modelo que el back office: cada job se puede pausar, disparar a mano o cambiar de horario; la configuración vive en <code>cron_job_configs</code>.</p>
-    <div class="tabla"><table>
-      <thead><tr><th>Job</th><th>Estado</th><th>Horario</th><th>Última corrida</th><th>Próxima</th><th>Acciones</th></tr></thead>
-      <tbody id="tablaCrons"></tbody>
-    </table></div>
-  </section>
-
-  <section id="masivo" role="tabpanel" hidden>
-    <h2>Descarga masiva por URL (datos-abiertos.chilecompra.cl)</h2>
-    <p class="muted">Un .zip por tipo y mes. Un mes se reprocesa solo si ChileCompra lo regeneró (cambió el ETag). Clic en un mes para procesarlo ahora.</p>
-    <div class="tabla" style="padding:12px"><div class="meses" id="meses"></div></div>
-  </section>
-
-  <section id="adjudicaciones" role="tabpanel" hidden>
-    <h2>Adjudicaciones</h2>
-    <div class="fila">
-      <select id="filtroTipo" aria-label="Tipo de proceso">
-        <option value="">Todos los tipos</option>
-        <option value="COMPRA_AGIL">Compra ágil</option>
-        <option value="LICITACION_PUBLICA">Licitación pública</option>
-        <option value="LICITACION_PRIVADA">Licitación privada</option>
-      </select>
-      <input id="filtroRut" placeholder="RUT comprador o proveedor" aria-label="RUT" />
-      <button id="buscarAdj" type="button" class="primario">Buscar</button>
+<aside id="sidebar" aria-label="Menú">
+  <div class="sb-cabecera">
+    <button class="sb-boton" id="plegar" type="button" aria-label="Plegar menú" title="Plegar menú"><svg class="i"><use href="#i-panel-close"/></svg></button>
+    <button class="sb-boton sb-isotipo-btn" id="desplegar" type="button" aria-label="Expandir menú" title="Expandir menú" style="display:none"><img class="sb-isotipo" src="logo-bf.svg" alt="Blanco" /></button>
+    <div class="sb-marca">
+      <img src="logo-full.svg" alt="Blanco Financiero" width="100" height="22" />
+      <p>Mercado Público · Scrapper</p>
     </div>
-    <div class="tabla"><table>
-      <thead><tr><th>Proceso</th><th>Comprador (deudor)</th><th>Adjudicado (vendedor)</th><th>OC</th><th class="num">Monto</th><th>Origen</th></tr></thead>
-      <tbody id="tablaAdj"></tbody>
-    </table></div>
-  </section>
+  </div>
+  <nav id="menu">
+    <div class="sb-seccion"><span class="fade">Monitoreo</span></div>
+    <a class="sb-item" href="#/resumen" data-ruta="resumen" title="Resumen"><svg class="i"><use href="#i-dashboard"/></svg><span class="fade">Resumen</span></a>
+    <div class="sb-seccion"><span class="fade">Resultados</span></div>
+    <a class="sb-item" href="#/adjudicaciones" data-ruta="adjudicaciones" title="Adjudicaciones"><svg class="i"><use href="#i-award"/></svg><span class="fade">Adjudicaciones</span></a>
+    <a class="sb-item" href="#/contactos" data-ruta="contactos" title="Contactos"><svg class="i"><use href="#i-users"/></svg><span class="fade">Contactos</span></a>
+    <div class="sb-seccion"><span class="fade">Ingesta</span></div>
+    <a class="sb-item" href="#/datos-abiertos" data-ruta="datos-abiertos" title="Datos abiertos"><svg class="i"><use href="#i-database"/></svg><span class="fade">Datos abiertos</span></a>
+    <div class="sb-seccion"><span class="fade">Administración</span></div>
+    <a class="sb-item" href="#/cron-jobs" data-ruta="cron-jobs" title="Cron Jobs"><svg class="i"><use href="#i-clock"/></svg><span class="fade">Cron Jobs</span></a>
+    <a class="sb-item" href="#/parametros" data-ruta="parametros" title="Parámetros"><svg class="i"><use href="#i-settings"/></svg><span class="fade">Parámetros</span></a>
+  </nav>
+  <div class="sb-pie">
+    <button class="sb-item" id="tema" type="button" title="Cambiar tema"><svg class="i" id="temaIcono"><use href="#i-moon"/></svg><span class="fade" id="temaTexto">Tema oscuro</span></button>
+    <div class="sb-llave"><input id="llave" type="password" placeholder="Llave de administración" autocomplete="off" aria-label="Llave de administración (x-admin-key)" /></div>
+  </div>
+</aside>
 
-  <section id="contactos" role="tabpanel" hidden>
-    <h2>Contactos encontrados</h2>
-    <div class="fila">
-      <select id="filtroRol" aria-label="Rol">
-        <option value="">Todos los roles</option>
-        <option value="COMPRADOR">Comprador (deudor)</option>
-        <option value="PROVEEDOR">Proveedor (vendedor)</option>
-        <option value="DESCONOCIDO">Sin rol claro</option>
-      </select>
-      <button id="buscarCont" type="button" class="primario">Buscar</button>
+<main id="contenido"><div class="pagina" id="pagina"></div></main>
+<div id="aviso" role="status" hidden></div>
+
+<dialog class="sheet" id="sheet" aria-labelledby="sheetTitulo">
+  <div class="dlg-cab"><h2 id="sheetTitulo"></h2><button class="btn fantasma" data-cerrar aria-label="Cerrar"><svg class="i"><use href="#i-x"/></svg></button></div>
+  <div class="dlg-cuerpo" id="sheetCuerpo"></div>
+</dialog>
+<dialog class="modal" id="modal" aria-labelledby="modalTitulo">
+  <form method="dialog" id="modalForm">
+    <div class="dlg-cab"><h2 id="modalTitulo">Editar horario</h2><button class="btn fantasma" value="cancelar" aria-label="Cerrar"><svg class="i"><use href="#i-x"/></svg></button></div>
+    <div class="dlg-cuerpo">
+      <label class="etq" for="modalCron">Expresión cron</label>
+      <input class="campo mono" id="modalCron" style="width:100%" />
+      <span class="sub">Vacío vuelve al horario por defecto del código. Ej.: <code>*/30 * * * *</code></span>
     </div>
-    <div class="tabla"><table>
-      <thead><tr><th>RUT</th><th>Rol</th><th>Nombre / cargo</th><th>Correo</th><th>Teléfono</th><th>Fuente</th><th class="num">Confianza</th></tr></thead>
-      <tbody id="tablaCont"></tbody>
-    </table></div>
-  </section>
-
-  <section id="parametros" role="tabpanel" hidden>
-    <h2>Parámetros vivos</h2>
-    <p class="muted">Se aplican en la próxima corrida, sin redeploy.</p>
-    <div class="tabla"><table>
-      <thead><tr><th>Parámetro</th><th>Valor</th><th>Descripción</th><th></th></tr></thead>
-      <tbody id="tablaParams"></tbody>
-    </table></div>
-  </section>
-</main>
-
-<dialog id="dialogo">
-  <h2 id="dialogoTitulo"></h2>
-  <pre id="dialogoCuerpo"></pre>
-  <form method="dialog"><button>Cerrar</button></form>
+    <div class="dlg-pie"><button class="btn" value="cancelar">Cancelar</button><button class="btn primario" value="guardar">Guardar</button></div>
+  </form>
 </dialog>
 
 <script>
 (() => {
-  const $ = (s) => document.querySelector(s);
+  const $ = (s, r = document) => r.querySelector(s);
   const guardar = (k, v) => { try { localStorage.setItem(k, v); } catch {} };
   const leer = (k) => { try { return localStorage.getItem(k) ?? ''; } catch { return ''; } };
   const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  const fmtNum = (n) => n == null ? '—' : Number(n).toLocaleString('es-CL', { maximumFractionDigits: 0 });
-  const fmtFecha = (d) => d ? new Date(d).toLocaleString('es-CL', { dateStyle: 'short', timeStyle: 'short' }) : '—';
+  const num = (n) => n == null ? '—' : Number(n).toLocaleString('es-CL', { maximumFractionDigits: 0 });
+  const fecha = (d) => d ? new Date(d).toLocaleString('es-CL', { dateStyle: 'short', timeStyle: 'short' }) : '—';
+  const icono = (id) => `<svg class="i"><use href="#i-${id}"/></svg>`;
   const MESES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 
-  // Tema: sistema / claro / oscuro (preferencia local del navegador).
-  const aplicarTema = (t) => { if (t) document.documentElement.dataset.theme = t; else delete document.documentElement.dataset.theme; };
-  $('#tema').value = leer('tema'); aplicarTema(leer('tema'));
-  $('#tema').addEventListener('change', (e) => { guardar('tema', e.target.value); aplicarTema(e.target.value); });
+  // ── Sidebar plegable (misma preferencia que el back office: sidebar_collapsed) ──
+  const sidebar = $('#sidebar');
+  const aplicarPlegado = (p) => { sidebar.classList.toggle('plegado', p); $('#desplegar').style.display = p ? '' : 'none'; guardar('sidebar_collapsed', p ? '1' : '0'); };
+  aplicarPlegado(leer('sidebar_collapsed') === '1');
+  $('#plegar').onclick = () => aplicarPlegado(true);
+  $('#desplegar').onclick = () => aplicarPlegado(false);
+
+  // ── Tema claro/oscuro ──
+  const oscuroSistema = () => matchMedia('(prefers-color-scheme: dark)').matches;
+  const temaActual = () => document.documentElement.dataset.theme || (oscuroSistema() ? 'dark' : 'light');
+  function pintarTema() {
+    const oscuro = temaActual() === 'dark';
+    $('#temaIcono use').setAttribute('href', oscuro ? '#i-sun' : '#i-moon');
+    $('#temaTexto').textContent = oscuro ? 'Tema claro' : 'Tema oscuro';
+  }
+  if (leer('tema')) document.documentElement.dataset.theme = leer('tema');
+  pintarTema();
+  $('#tema').onclick = () => { const t = temaActual() === 'dark' ? 'light' : 'dark'; document.documentElement.dataset.theme = t; guardar('tema', t); pintarTema(); };
+
   $('#llave').value = leer('llave');
-  $('#llave').addEventListener('change', (e) => { guardar('llave', e.target.value); cargarTodo(); });
+  $('#llave').onchange = (e) => { guardar('llave', e.target.value); render(); };
 
   async function api(ruta, opciones = {}) {
-    const res = await fetch('/api' + ruta, {
-      ...opciones,
-      headers: { 'content-type': 'application/json', 'x-admin-key': $('#llave').value, ...(opciones.headers || {}) },
-    });
+    const res = await fetch('/api' + ruta, { ...opciones, headers: { 'content-type': 'application/json', 'x-admin-key': $('#llave').value, ...(opciones.headers || {}) } });
     const cuerpo = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(cuerpo.message || ('HTTP ' + res.status));
     return cuerpo;
   }
-
   function avisar(texto, error = false) {
-    const m = $('#mensaje');
-    m.hidden = false; m.className = 'aviso' + (error ? ' err' : ''); m.textContent = texto;
-    clearTimeout(avisar.t); avisar.t = setTimeout(() => { m.hidden = true; }, 6000);
+    const a = $('#aviso'); a.hidden = false; a.className = error ? 'err' : ''; a.textContent = texto;
+    clearTimeout(avisar.t); avisar.t = setTimeout(() => { a.hidden = true; }, 5000);
+  }
+  const badge = (tono, texto) => `<span class="badge ${tono}">${esc(texto)}</span>`;
+  const estadoRun = (s) => ({ SUCCESS: badge('ok', 'Éxito'), FAILED: badge('err', 'Falló'), RUNNING: badge('info', 'Corriendo') }[s] || badge('neutro', s));
+
+  function encabezado({ titulo, descripcion, icono: ic, acciones = '' }) {
+    return `<header class="encabezado"><div class="titulo"><span class="icono-caja" aria-hidden="true">${icono(ic)}</span>
+      <div><h1>${esc(titulo)}</h1>${descripcion ? `<p class="descripcion">${esc(descripcion)}</p>` : ''}</div></div>
+      <div class="acciones">${acciones}</div></header>`;
   }
 
-  function chipEstado(estado) {
-    const clases = { SUCCESS: 'ok', OK: 'ok', active: 'ok', RUNNING: 'info', PROCESANDO: 'info', DESCARGANDO: 'info', FAILED: 'err', ERROR: 'err', paused: 'warn' };
-    const textos = { active: 'Activo', paused: 'Pausado', SUCCESS: 'OK', FAILED: 'Falló', RUNNING: 'Corriendo' };
-    return `<span class="chip ${clases[estado] || 'neutro'}">${esc(textos[estado] || estado)}</span>`;
-  }
+  // ── Vistas ──
+  const vistas = {
+    async resumen(p) {
+      p.innerHTML = encabezado({ titulo: 'Resumen', descripcion: 'Lo ingerido desde Mercado Público: organismos, proveedores, procesos y contactos.', icono: 'dashboard', acciones: `<button class="btn" data-recargar>${icono('refresh')}Recargar</button>` }) + '<div class="kpis" id="kpis"></div>';
+      const { data } = await api('/consultas/resumen');
+      const suma = (a) => a.reduce((s, x) => s + x._count, 0);
+      const por = (a, k, v) => a.filter((x) => x[k] === v).reduce((s, x) => s + x._count, 0);
+      const t = (s) => s.toLowerCase().replace(/_/g, ' ');
+      const kpis = [
+        ['Organismos (deudores)', num(data.organismos), 'RUT compradores'],
+        ['Proveedores (vendedores)', num(data.proveedores), 'RUT que vendieron u ofertaron'],
+        ['Procesos', num(suma(data.procesos)), data.procesos.map((x) => `${t(x.tipo)}: ${num(x._count)}`).join(' · ')],
+        ['Órdenes de compra', num(suma(data.ordenes)), data.ordenes.map((o) => `${o.fuente === 'BUSCADOR' ? 'tiempo real' : t(o.fuente)}: ${num(o._count)}`).join(' · ')],
+        ['OC compra ágil sin cruzar', num(data.ocAgSinProceso), 'Pendientes de encontrar su COT'],
+        ['Adjudicaciones', num(suma(data.adjudicaciones)), data.adjudicaciones.map((a) => `${t(a.origen)}: ${num(a._count)}`).join(' · ')],
+        ['Documentos', num(suma(data.documentos)), `Con texto: ${num(por(data.documentos, 'extraccionEstado', 'OK'))}`],
+        ['Contactos', num(suma(data.contactos)), `Comprador: ${num(por(data.contactos, 'rol', 'COMPRADOR'))} · Proveedor: ${num(por(data.contactos, 'rol', 'PROVEEDOR'))}`],
+        ['Última OC en tiempo real', data.ultimaOcTiempoReal ? esc(data.ultimaOcTiempoReal.codigo) : '—', data.ultimaOcTiempoReal ? fecha(data.ultimaOcTiempoReal.fechaEnvio) : 'El poll aún no corre'],
+      ];
+      $('#kpis').innerHTML = kpis.map(([k, v, d]) => `<div class="kpi"><div class="k">${esc(k)}</div><div class="v">${v}</div><div class="d">${esc(d)}</div></div>`).join('');
+    },
 
-  // Pestañas
-  document.querySelectorAll('nav [role=tab]').forEach((b) => b.addEventListener('click', () => {
-    document.querySelectorAll('nav [role=tab]').forEach((x) => x.setAttribute('aria-selected', String(x === b)));
-    document.querySelectorAll('main section').forEach((s) => { s.hidden = s.id !== b.dataset.tab; });
-    guardar('pestana', b.dataset.tab);
-  }));
-  const inicial = document.querySelector(`nav [data-tab="${leer('pestana')}"]`); if (inicial) inicial.click();
+    async adjudicaciones(p) {
+      p.innerHTML = encabezado({ titulo: 'Adjudicaciones', descripcion: 'Quién se adjudicó cada licitación y compra ágil, con su OC.', icono: 'award' }) + `
+        <div class="filtros">
+          <select id="fTipo" aria-label="Tipo de proceso"><option value="">Todos los tipos</option><option value="COMPRA_AGIL">Compra ágil</option><option value="LICITACION_PUBLICA">Licitación pública</option><option value="LICITACION_PRIVADA">Licitación privada</option></select>
+          <input id="fRut" placeholder="RUT comprador o proveedor" aria-label="RUT" />
+          <button class="btn primario" id="fBuscar">${icono('search')}Buscar</button>
+        </div>
+        <div class="tabla"><table><thead><tr><th>Proceso</th><th>Comprador (deudor)</th><th>Adjudicado (vendedor)</th><th>OC</th><th class="num">Monto</th><th>Origen</th></tr></thead><tbody id="tAdj"></tbody></table></div>`;
+      const cargar = async () => {
+        const qs = new URLSearchParams({ limit: '100' });
+        if ($('#fTipo').value) qs.set('tipo', $('#fTipo').value);
+        if ($('#fRut').value) qs.set('rut', $('#fRut').value);
+        const { data } = await api('/consultas/adjudicaciones?' + qs);
+        const tono = { FICHA_COMPRA_AGIL: 'info', ORDEN_COMPRA: 'ok' };
+        $('#tAdj').innerHTML = data.map((a) => `<tr>
+          <td><a class="nowrap" href="${esc(a.proceso_link)}" target="_blank" rel="noopener">${esc(a.proceso_codigo)}</a><span class="sub">${esc((a.proceso_nombre || '').slice(0, 70))}</span></td>
+          <td>${esc(a.comprador_nombre || '—')}<span class="sub nowrap">${esc(a.comprador_rut || '')}</span></td>
+          <td>${esc(a.proveedor_nombre || '—')}<span class="sub nowrap">${esc(a.proveedor_rut)}</span></td>
+          <td class="nowrap">${a.orden_compra_codigo ? `<a href="${esc(a.orden_compra_link)}" target="_blank" rel="noopener">${esc(a.orden_compra_codigo)}</a><span class="sub">${fecha(a.orden_compra_fecha_envio)}</span>` : '<span class="sub">Sin OC</span>'}</td>
+          <td class="num">$ ${num(a.monto)}</td>
+          <td>${badge(tono[a.origen] || 'neutro', a.origen.toLowerCase().replace(/_/g, ' '))}</td></tr>`).join('') || '<tr><td colspan="6" class="vacio">Sin adjudicaciones con ese filtro</td></tr>';
+      };
+      $('#fBuscar').onclick = () => cargar().catch((e) => avisar(e.message, true));
+      await cargar();
+    },
 
-  async function cargarResumen() {
-    const { data } = await api('/consultas/resumen');
-    const suma = (arr) => arr.reduce((s, x) => s + x._count, 0);
-    const por = (arr, k, v) => arr.filter((x) => x[k] === v).reduce((s, x) => s + x._count, 0);
-    const t = [
-      ['Organismos (deudores)', fmtNum(data.organismos), 'RUT compradores'],
-      ['Proveedores (vendedores)', fmtNum(data.proveedores), 'RUT que vendieron u ofertaron'],
-      ['Procesos', fmtNum(suma(data.procesos)), data.procesos.map((p) => `${p.tipo.replace('_', ' ').toLowerCase()}: ${fmtNum(p._count)}`).join(' · ')],
-      ['Órdenes de compra', fmtNum(suma(data.ordenes)), data.ordenes.map((o) => `${o.fuente === 'BUSCADOR' ? 'tiempo real' : o.fuente.toLowerCase().replace('_', ' ')}: ${fmtNum(o._count)}`).join(' · ')],
-      ['OC compra ágil sin cruzar', fmtNum(data.ocAgSinProceso), 'pendientes de encontrar su COT'],
-      ['Adjudicaciones', fmtNum(suma(data.adjudicaciones)), data.adjudicaciones.map((a) => `${a.origen.toLowerCase().replace(/_/g, ' ')}: ${fmtNum(a._count)}`).join(' · ')],
-      ['Documentos', fmtNum(suma(data.documentos)), `con texto: ${fmtNum(por(data.documentos, 'extraccionEstado', 'OK'))}`],
-      ['Contactos', fmtNum(suma(data.contactos)), `comprador: ${fmtNum(por(data.contactos, 'rol', 'COMPRADOR'))} · proveedor: ${fmtNum(por(data.contactos, 'rol', 'PROVEEDOR'))}`],
-      ['Última OC en tiempo real', data.ultimaOcTiempoReal ? esc(data.ultimaOcTiempoReal.codigo) : '—', data.ultimaOcTiempoReal ? fmtFecha(data.ultimaOcTiempoReal.fechaEnvio) : 'el poll aún no corre'],
-    ];
-    $('#tarjetas').innerHTML = t.map(([k, v, d]) => `<div class="tarjeta"><div class="k">${esc(k)}</div><div class="v">${v}</div><div class="d">${esc(d)}</div></div>`).join('');
-  }
+    async contactos(p) {
+      p.innerHTML = encabezado({ titulo: 'Contactos', descripcion: 'Correos y teléfonos del comprador (deudor) y del proveedor (vendedor).', icono: 'users' }) + `
+        <div class="filtros">
+          <select id="fRol" aria-label="Rol"><option value="">Todos los roles</option><option value="COMPRADOR">Comprador (deudor)</option><option value="PROVEEDOR">Proveedor (vendedor)</option><option value="DESCONOCIDO">Sin rol claro</option></select>
+          <select id="fConf" aria-label="Confianza mínima"><option value="">Cualquier confianza</option><option value="0.7">70% o más</option><option value="0.9">90% o más</option></select>
+          <button class="btn primario" id="fBuscar">${icono('search')}Buscar</button>
+        </div>
+        <div class="tabla"><table><thead><tr><th>RUT</th><th>Rol</th><th>Nombre / cargo</th><th>Correo</th><th>Teléfono</th><th>Fuente</th><th class="num">Confianza</th></tr></thead><tbody id="tCont"></tbody></table></div>`;
+      const rol = { COMPRADOR: ['info', 'Comprador'], PROVEEDOR: ['ok', 'Proveedor'], DESCONOCIDO: ['neutro', 'Sin rol'] };
+      const fuente = { FICHA_OC: 'Ficha OC', FICHA_LICITACION: 'Ficha licitación', DOCUMENTO: 'Documento', DOCUMENTO_IA: 'Documento (IA)' };
+      const cargar = async () => {
+        const qs = new URLSearchParams({ limit: '100' });
+        if ($('#fRol').value) qs.set('rol', $('#fRol').value);
+        if ($('#fConf').value) qs.set('minConfianza', $('#fConf').value);
+        const { data } = await api('/consultas/contactos?' + qs);
+        $('#tCont').innerHTML = data.map((c) => `<tr>
+          <td class="nowrap mono">${esc(c.rut || '—')}</td>
+          <td>${badge(rol[c.rol][0], rol[c.rol][1])}</td>
+          <td>${esc(c.nombre || '—')}<span class="sub">${esc(c.cargo || '')}</span></td>
+          <td>${c.email ? `<a href="mailto:${esc(c.email)}">${esc(c.email)}</a>` : '—'}</td>
+          <td class="nowrap">${esc(c.telefono || '—')}</td>
+          <td>${esc(fuente[c.fuente] || c.fuente)}<span class="sub" title="${esc(c.evidencia)}">${esc((c.evidencia || '').slice(0, 60))}</span></td>
+          <td class="num">${Math.round(c.confianza * 100)}%</td></tr>`).join('') || '<tr><td colspan="7" class="vacio">Sin contactos todavía</td></tr>';
+      };
+      $('#fBuscar').onclick = () => cargar().catch((e) => avisar(e.message, true));
+      await cargar();
+    },
 
-  async function cargarCrons() {
-    const { data } = await api('/cron-jobs');
-    $('#tablaCrons').innerHTML = data.map((j) => `<tr>
-      <td><b>${esc(j.name)}</b><div class="muted">${esc(j.description)}</div></td>
-      <td>${chipEstado(j.state)}</td>
-      <td><code>${esc(j.activeSchedule)}</code>${j.scheduleOverride ? ' <span class="chip warn">override</span>' : ''}<div class="muted">${esc(j.activeTimeZone || 'hora del servidor')}</div></td>
-      <td>${j.lastRun ? chipEstado(j.lastRun.status) + `<div class="muted">${fmtFecha(j.lastRun.startedAt)} · ${j.lastRun.durationMs != null ? Math.round(j.lastRun.durationMs / 1000) + ' s' : ''}</div>` : '<span class="muted">nunca</span>'}</td>
-      <td class="muted">${fmtFecha(j.nextRun)}</td>
-      <td><div class="acciones">
-        <button data-run="${esc(j.name)}" class="primario">Ejecutar</button>
-        <button data-toggle="${esc(j.name)}" data-state="${j.state}">${j.state === 'paused' ? 'Reanudar' : 'Pausar'}</button>
-        <button data-horario="${esc(j.name)}" data-actual="${esc(j.activeSchedule)}">Horario</button>
-        <button data-hist="${esc(j.name)}">Historial</button>
-      </div></td></tr>`).join('');
-  }
-
-  $('#tablaCrons').addEventListener('click', async (e) => {
-    const b = e.target.closest('button'); if (!b) return;
-    try {
-      if (b.dataset.run) { const r = await api(`/cron-jobs/${b.dataset.run}/trigger`, { method: 'POST' }); avisar(r.message || 'Disparado'); }
-      if (b.dataset.toggle) { await api(`/cron-jobs/${b.dataset.toggle}`, { method: 'PATCH', body: JSON.stringify({ state: b.dataset.state === 'paused' ? 'active' : 'paused' }) }); }
-      if (b.dataset.horario) {
-        const nuevo = prompt('Expresión cron (vacío = volver al horario por defecto)', b.dataset.actual);
-        if (nuevo === null) return;
-        await api(`/cron-jobs/${b.dataset.horario}`, { method: 'PATCH', body: JSON.stringify(nuevo.trim() ? { schedule: nuevo.trim() } : { resetSchedule: true }) });
+    async 'datos-abiertos'(p) {
+      p.innerHTML = encabezado({ titulo: 'Datos abiertos', descripcion: 'Descarga masiva por URL: un .zip por tipo y mes. Se reprocesa solo si cambió el ETag.', icono: 'database', acciones: `<button class="btn" data-recargar>${icono('refresh')}Recargar</button>` }) + '<div class="tabla"><div class="meses" id="meses"></div></div>';
+      const { data } = await api('/datos-abiertos/estado');
+      const filas = {};
+      for (const m of data) (filas[`${m.tipo} ${m.anio}`] ??= {})[m.mes] = m;
+      let html = '<div></div>' + MESES.map((m) => `<div class="cab-mes">${m}</div>`).join('');
+      for (const [clave, meses] of Object.entries(filas)) {
+        const [tipo, anio] = clave.split(' ');
+        html += `<div><b>${tipo === 'OC' ? 'Órdenes' : 'Licitaciones'}</b><span class="sub">${anio}</span></div>`;
+        for (let mes = 1; mes <= 12; mes++) {
+          const m = meses[mes];
+          if (!m) { html += '<div></div>'; continue; }
+          const texto = { FALTA: 'Falta', OK: 'OK', ERROR: 'Error', PROCESANDO: 'Procesando', DESCARGANDO: 'Bajando', PENDIENTE: 'Pendiente' }[m.estado] || m.estado;
+          html += `<div class="mes ${m.estado}" title="${esc(m.error || m.url)}"><b>${texto}</b>${m.filasLeidas ? num(m.filasLeidas) : '&nbsp;'}<br><button class="btn" data-tipo="${tipo}" data-anio="${anio}" data-mes="${mes}" data-forzar="${m.estado === 'OK'}">${m.estado === 'OK' ? 'Forzar' : 'Procesar'}</button></div>`;
+        }
       }
-      if (b.dataset.hist) {
-        const r = await api(`/cron-jobs/${b.dataset.hist}/runs?limit=15`);
-        $('#dialogoTitulo').textContent = 'Historial · ' + b.dataset.hist;
-        $('#dialogoCuerpo').textContent = r.data.map((x) => `${fmtFecha(x.startedAt)}  ${x.status.padEnd(7)} ${x.triggeredBy.padEnd(6)} ${String(x.durationMs ?? '').padStart(8)} ms  ok:${x.itemsProcessed} err:${x.itemsFailed}\n  ${x.errorMessage ?? JSON.stringify(x.metadata ?? {})}`).join('\n\n') || 'Sin corridas';
-        $('#dialogo').showModal();
-      }
-      await cargarCrons();
-    } catch (err) { avisar(err.message, true); }
+      $('#meses').innerHTML = html;
+      $('#meses').onclick = async (e) => {
+        const b = e.target.closest('button'); if (!b) return;
+        try {
+          const r = await api(`/datos-abiertos/archivos/${b.dataset.tipo}/${b.dataset.anio}/${b.dataset.mes}${b.dataset.forzar === 'true' ? '?forzar=true' : ''}`, { method: 'POST' });
+          avisar(r.message); setTimeout(render, 1500);
+        } catch (err) { avisar(err.message, true); }
+      };
+    },
+
+    async 'cron-jobs'(p) {
+      p.innerHTML = encabezado({ titulo: 'Cron Jobs', descripcion: 'Tareas programadas: pausar, disparar a mano o cambiar el horario.', icono: 'clock', acciones: `<button class="btn" data-recargar>${icono('refresh')}Recargar</button>` }) +
+        '<div class="tabla"><table><thead><tr><th>Tarea</th><th>Horario</th><th>Última ejecución</th><th>Próxima</th><th>Estado</th><th></th></tr></thead><tbody id="tCron"></tbody></table></div>';
+      const { data } = await api('/cron-jobs');
+      $('#tCron').innerHTML = data.map((j) => `<tr>
+        <td><span style="font-weight:500">${esc(j.name)}</span><span class="sub">${esc(j.description)}</span></td>
+        <td class="nowrap"><code>${esc(j.activeSchedule)}</code>${j.scheduleOverride ? ' ' + badge('warn', 'Override') : ''}<span class="sub">${esc(j.activeTimeZone || 'Hora del servidor')}</span></td>
+        <td class="nowrap">${j.lastRun ? estadoRun(j.lastRun.status) + `<span class="sub">${fecha(j.lastRun.startedAt)}${j.lastRun.durationMs != null ? ' · ' + Math.round(j.lastRun.durationMs / 1000) + ' s' : ''}</span>` : '<span class="sub">Sin ejecuciones</span>'}</td>
+        <td class="nowrap">${j.state === 'paused' ? '<span class="sub">Pausado</span>' : fecha(j.nextRun)}</td>
+        <td>${j.state === 'paused' ? badge('warn', 'Pausado') : badge('ok', 'Activo')}</td>
+        <td><div class="acciones" style="flex-wrap:nowrap">
+          <button class="btn fantasma" data-run="${esc(j.name)}" title="Ejecutar ahora" aria-label="Ejecutar ${esc(j.name)}">${icono('play')}</button>
+          <button class="btn fantasma" data-toggle="${esc(j.name)}" data-state="${j.state}" title="${j.state === 'paused' ? 'Reanudar' : 'Pausar'}" aria-label="${j.state === 'paused' ? 'Reanudar' : 'Pausar'} ${esc(j.name)}">${icono(j.state === 'paused' ? 'refresh' : 'pause')}</button>
+          <button class="btn fantasma" data-horario="${esc(j.name)}" data-actual="${esc(j.activeSchedule)}" title="Editar horario" aria-label="Editar horario de ${esc(j.name)}">${icono('pencil')}</button>
+          <button class="btn fantasma" data-hist="${esc(j.name)}" title="Historial" aria-label="Historial de ${esc(j.name)}">${icono('history')}</button>
+        </div></td></tr>`).join('');
+      $('#tCron').onclick = async (e) => {
+        const b = e.target.closest('button'); if (!b) return;
+        try {
+          if (b.dataset.run) { const r = await api(`/cron-jobs/${b.dataset.run}/trigger`, { method: 'POST' }); avisar(r.message || 'Disparado'); }
+          if (b.dataset.toggle) await api(`/cron-jobs/${b.dataset.toggle}`, { method: 'PATCH', body: JSON.stringify({ state: b.dataset.state === 'paused' ? 'active' : 'paused' }) });
+          if (b.dataset.horario) {
+            $('#modalTitulo').textContent = 'Horario · ' + b.dataset.horario;
+            $('#modalCron').value = b.dataset.actual;
+            $('#modal').showModal();
+            const valor = await new Promise((r) => $('#modal').addEventListener('close', () => r($('#modal').returnValue), { once: true }));
+            if (valor !== 'guardar') return;
+            const nuevo = $('#modalCron').value.trim();
+            await api(`/cron-jobs/${b.dataset.horario}`, { method: 'PATCH', body: JSON.stringify(nuevo ? { schedule: nuevo } : { resetSchedule: true }) });
+          }
+          if (b.dataset.hist) {
+            const r = await api(`/cron-jobs/${b.dataset.hist}/runs?limit=20`);
+            $('#sheetTitulo').textContent = 'Historial · ' + b.dataset.hist;
+            $('#sheetCuerpo').innerHTML = r.data.map((x) => `<div class="corrida"><div class="fila"><span>${estadoRun(x.status)} <span class="sub" style="display:inline">${x.triggeredBy === 'MANUAL' ? 'Manual' : 'Programada'}</span></span><span class="sub" style="margin:0">${fecha(x.startedAt)} · ${x.durationMs != null ? Math.round(x.durationMs / 1000) + ' s' : '—'}</span></div>
+              <span class="sub">Procesados: ${num(x.itemsProcessed)} · Con error: ${num(x.itemsFailed)}</span>
+              ${x.errorMessage || x.metadata ? `<pre>${esc(x.errorMessage ?? JSON.stringify(x.metadata, null, 1))}</pre>` : ''}</div>`).join('') || '<div class="vacio">Sin ejecuciones</div>';
+            $('#sheet').showModal();
+          }
+          if (!b.dataset.hist) await render();
+        } catch (err) { avisar(err.message, true); }
+      };
+    },
+
+    async parametros(p) {
+      p.innerHTML = encabezado({ titulo: 'Parámetros', descripcion: 'Valores vivos de los crons. Se aplican en la próxima ejecución, sin redeploy.', icono: 'settings' }) +
+        '<div class="tabla"><table><thead><tr><th>Parámetro</th><th>Valor</th><th>Descripción</th><th></th></tr></thead><tbody id="tPar"></tbody></table></div>';
+      const { data } = await api('/configuracion');
+      $('#tPar').innerHTML = data.map((x) => `<tr>
+        <td class="nowrap"><code>${esc(x.clave)}</code>${x.modificado ? ' ' + badge('warn', 'Modificado') : ''}</td>
+        <td>${typeof x.valor === 'boolean'
+          ? `<select class="campo" data-param="${esc(x.clave)}" data-tipo="boolean" aria-label="${esc(x.clave)}"><option value="true" ${x.valor ? 'selected' : ''}>Sí</option><option value="false" ${!x.valor ? 'selected' : ''}>No</option></select>`
+          : `<input class="campo" data-param="${esc(x.clave)}" data-tipo="number" type="number" value="${esc(x.valor)}" style="width:110px" aria-label="${esc(x.clave)}" />`}</td>
+        <td>${esc(x.descripcion)}<span class="sub">Por defecto: ${esc(x.valorPorDefecto)}</span></td>
+        <td><div class="acciones" style="flex-wrap:nowrap"><button class="btn primario" data-guardar="${esc(x.clave)}">Guardar</button>${x.modificado ? `<button class="btn" data-reset="${esc(x.clave)}">Restablecer</button>` : ''}</div></td></tr>`).join('');
+      $('#tPar').onclick = async (e) => {
+        const b = e.target.closest('button'); if (!b) return;
+        try {
+          if (b.dataset.guardar) {
+            const c = document.querySelector(`[data-param="${b.dataset.guardar}"]`);
+            await api(`/configuracion/${b.dataset.guardar}`, { method: 'PATCH', body: JSON.stringify({ valor: c.dataset.tipo === 'boolean' ? c.value === 'true' : Number(c.value) }) });
+            avisar('Guardado: ' + b.dataset.guardar);
+          }
+          if (b.dataset.reset) await api(`/configuracion/${b.dataset.reset}`, { method: 'DELETE' });
+          await render();
+        } catch (err) { avisar(err.message, true); }
+      };
+    },
+  };
+
+  // ── Ruteo por hash: el ítem activo lleva el borde coral, como en el back office ──
+  const rutaActual = () => (location.hash.replace(/^#\//, '') || 'resumen');
+  async function render() {
+    const ruta = vistas[rutaActual()] ? rutaActual() : 'resumen';
+    document.querySelectorAll('.sb-item[data-ruta]').forEach((a) => { if (a.dataset.ruta === ruta) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
+    const p = $('#pagina');
+    try { await vistas[ruta](p); } catch (err) { avisar(err.message, true); }
+  }
+  document.addEventListener('click', (e) => {
+    if (e.target.closest('[data-recargar]')) render();
+    if (e.target.closest('[data-cerrar]')) e.target.closest('dialog').close();
   });
-
-  async function cargarMasivo() {
-    const { data } = await api('/datos-abiertos/estado');
-    const filas = {};
-    for (const m of data) (filas[`${m.tipo} ${m.anio}`] ??= {})[m.mes] = m;
-    let html = '<div></div>' + MESES.map((m) => `<div class="muted" style="text-align:center;font-size:12px">${m}</div>`).join('');
-    for (const [clave, meses] of Object.entries(filas)) {
-      const [tipo, anio] = clave.split(' ');
-      html += `<div><b>${tipo === 'OC' ? 'OC' : 'Licit.'}</b><div class="muted" style="font-size:12px">${anio}</div></div>`;
-      for (let mes = 1; mes <= 12; mes++) {
-        const m = meses[mes];
-        if (!m) { html += '<div></div>'; continue; }
-        html += `<div class="mes ${m.estado}" title="${esc(m.error || m.url)}"><b>${esc(m.estado === 'FALTA' ? 'Falta' : m.estado)}</b>${m.filasLeidas ? fmtNum(m.filasLeidas) : '&nbsp;'}<br><button data-tipo="${tipo}" data-anio="${anio}" data-mes="${mes}">${m.estado === 'OK' ? 'Forzar' : 'Procesar'}</button></div>`;
-      }
-    }
-    $('#meses').innerHTML = html;
-  }
-  $('#meses').addEventListener('click', async (e) => {
-    const b = e.target.closest('button'); if (!b) return;
-    try {
-      const forzar = b.textContent === 'Forzar' ? '?forzar=true' : '';
-      const r = await api(`/datos-abiertos/archivos/${b.dataset.tipo}/${b.dataset.anio}/${b.dataset.mes}${forzar}`, { method: 'POST' });
-      avisar(r.message); setTimeout(cargarMasivo, 1500);
-    } catch (err) { avisar(err.message, true); }
-  });
-
-  async function cargarAdj() {
-    const qs = new URLSearchParams({ limit: '100' });
-    if ($('#filtroTipo').value) qs.set('tipo', $('#filtroTipo').value);
-    if ($('#filtroRut').value) qs.set('rut', $('#filtroRut').value);
-    const { data } = await api('/consultas/adjudicaciones?' + qs);
-    $('#tablaAdj').innerHTML = data.map((a) => `<tr>
-      <td><a class="nowrap" href="${esc(a.proceso_link)}" target="_blank" rel="noopener">${esc(a.proceso_codigo)}</a><div class="muted">${esc((a.proceso_nombre || '').slice(0, 70))}</div></td>
-      <td>${esc(a.comprador_nombre || '—')}<div class="muted nowrap">${esc(a.comprador_rut || '')}</div></td>
-      <td>${esc(a.proveedor_nombre || '—')}<div class="muted nowrap">${esc(a.proveedor_rut)}</div></td>
-      <td class="nowrap">${a.orden_compra_codigo ? `<a href="${esc(a.orden_compra_link)}" target="_blank" rel="noopener">${esc(a.orden_compra_codigo)}</a><div class="muted">${fmtFecha(a.orden_compra_fecha_envio)}</div>` : '<span class="muted">sin OC</span>'}</td>
-      <td class="num">$ ${fmtNum(a.monto)}</td>
-      <td><span class="chip ${a.origen === 'FICHA_COMPRA_AGIL' ? 'info' : a.origen === 'ORDEN_COMPRA' ? 'ok' : 'neutro'}">${esc(a.origen.toLowerCase().replace(/_/g, ' '))}</span></td>
-    </tr>`).join('') || '<tr><td colspan="6" class="muted">Sin adjudicaciones con ese filtro</td></tr>';
-  }
-  $('#buscarAdj').addEventListener('click', () => cargarAdj().catch((e) => avisar(e.message, true)));
-
-  async function cargarCont() {
-    const qs = new URLSearchParams({ limit: '100' });
-    if ($('#filtroRol').value) qs.set('rol', $('#filtroRol').value);
-    const { data } = await api('/consultas/contactos?' + qs);
-    const rol = { COMPRADOR: ['info', 'Comprador'], PROVEEDOR: ['ok', 'Proveedor'], DESCONOCIDO: ['neutro', 'Sin rol'] };
-    $('#tablaCont').innerHTML = data.map((c) => `<tr>
-      <td class="nowrap">${esc(c.rut || '—')}</td>
-      <td><span class="chip ${rol[c.rol][0]}">${rol[c.rol][1]}</span></td>
-      <td>${esc(c.nombre || '—')}<div class="muted">${esc(c.cargo || '')}</div></td>
-      <td>${c.email ? `<a href="mailto:${esc(c.email)}">${esc(c.email)}</a>` : '—'}</td>
-      <td>${esc(c.telefono || '—')}</td>
-      <td>${esc(c.fuente.toLowerCase().replace('_', ' '))}<div class="muted" title="${esc(c.evidencia)}">${esc((c.evidencia || '').slice(0, 60))}</div></td>
-      <td class="num">${Math.round(c.confianza * 100)}%</td>
-    </tr>`).join('') || '<tr><td colspan="7" class="muted">Sin contactos todavía</td></tr>';
-  }
-  $('#buscarCont').addEventListener('click', () => cargarCont().catch((e) => avisar(e.message, true)));
-
-  async function cargarParams() {
-    const { data } = await api('/configuracion');
-    $('#tablaParams').innerHTML = data.map((p) => `<tr>
-      <td><code>${esc(p.clave)}</code>${p.modificado ? ' <span class="chip warn">modificado</span>' : ''}</td>
-      <td>${typeof p.valor === 'boolean'
-        ? `<select data-param="${esc(p.clave)}" data-tipo="boolean" aria-label="${esc(p.clave)}"><option value="true" ${p.valor ? 'selected' : ''}>Sí</option><option value="false" ${!p.valor ? 'selected' : ''}>No</option></select>`
-        : `<input data-param="${esc(p.clave)}" data-tipo="number" type="number" value="${esc(p.valor)}" style="width:110px" aria-label="${esc(p.clave)}" />`}</td>
-      <td class="muted">${esc(p.descripcion)}<div>Por defecto: <code>${esc(p.valorPorDefecto)}</code></div></td>
-      <td><div class="acciones"><button data-guardar="${esc(p.clave)}" class="primario">Guardar</button>${p.modificado ? `<button data-reset="${esc(p.clave)}">Restablecer</button>` : ''}</div></td>
-    </tr>`).join('');
-  }
-  $('#tablaParams').addEventListener('click', async (e) => {
-    const b = e.target.closest('button'); if (!b) return;
-    try {
-      if (b.dataset.guardar) {
-        const campo = document.querySelector(`[data-param="${b.dataset.guardar}"]`);
-        const valor = campo.dataset.tipo === 'boolean' ? campo.value === 'true' : Number(campo.value);
-        await api(`/configuracion/${b.dataset.guardar}`, { method: 'PATCH', body: JSON.stringify({ valor }) });
-        avisar('Guardado: ' + b.dataset.guardar);
-      }
-      if (b.dataset.reset) await api(`/configuracion/${b.dataset.reset}`, { method: 'DELETE' });
-      await cargarParams();
-    } catch (err) { avisar(err.message, true); }
-  });
-
-  async function cargarTodo() {
-    try {
-      await Promise.all([cargarResumen(), cargarCrons(), cargarMasivo(), cargarAdj(), cargarCont(), cargarParams()]);
-    } catch (err) { avisar(err.message, true); }
-  }
-  $('#recargar').addEventListener('click', cargarTodo);
-  cargarTodo();
-  setInterval(() => { if (!document.hidden) { cargarCrons().catch(() => {}); cargarResumen().catch(() => {}); } }, 30000);
+  $('#sheet').addEventListener('click', (e) => { if (e.target === $('#sheet')) $('#sheet').close(); });
+  addEventListener('hashchange', render);
+  render();
+  setInterval(() => { if (!document.hidden && ['resumen', 'cron-jobs'].includes(rutaActual()) && !document.querySelector('dialog[open]')) render(); }, 30000);
 })();
 </script>
 </body>
