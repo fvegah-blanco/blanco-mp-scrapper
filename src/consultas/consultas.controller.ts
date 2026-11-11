@@ -4,6 +4,7 @@ import { Prisma, type RolContacto } from '@prisma/client';
 import { AdminKeyGuard } from '../common/admin-key.guard';
 import { normalizarRut } from '../common/rut';
 import { ConfiguracionService } from '../configuracion/configuracion.service';
+import { modeloPrincipal, modeloRespaldo } from '../extraccion/analisis-ia.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 /** Lectura de lo ingerido: resumen, adjudicaciones, fichas de empresa y proceso, contactos. */
@@ -65,7 +66,8 @@ export class ConsultasController {
           entradaUsdMtok: await this.configuracion.get('bedrock.precio_entrada_usd_mtok'),
           salidaUsdMtok: await this.configuracion.get('bedrock.precio_salida_usd_mtok'),
           dolarClp: await this.configuracion.get('ia.dolar_clp'),
-          modelo: process.env.BEDROCK_MODEL ?? 'us.anthropic.claude-haiku-4-5-20251001-v1:0',
+          modelo: modeloPrincipal(),
+          respaldo: modeloRespaldo(),
         },
         porDia,
         documentos,

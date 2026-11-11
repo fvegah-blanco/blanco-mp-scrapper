@@ -74,6 +74,7 @@ describe('contacto', () => {
   it('la misma persona con y sin teléfono tiene la misma clave', () => {
     expect(claveContacto('1-9', 'PROVEEDOR', 'a@b.cl', null)).toBe(claveContacto('1-9', 'PROVEEDOR', 'a@b.cl', '+56912345678'));
     expect(claveContacto('1-9', 'PROVEEDOR', null, '+56912345678')).toBe('1-9|PROVEEDOR|tel:+56912345678');
+    expect(claveContacto('1-9', 'PROVEEDOR', null, null, 'José  Pérez')).toBe('1-9|PROVEEDOR|nombre:jose perez');
   });
   it('normaliza correos', () => {
     expect(normalizarEmail(' Hector.Villar@HospitalLaFlorida.cl ')).toBe('hector.villar@hospitallaflorida.cl');

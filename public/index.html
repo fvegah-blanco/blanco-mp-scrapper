@@ -346,7 +346,7 @@
         ['Tokens', `${num(t.tokens_entrada)} / ${num(t.tokens_salida)}`, 'Entrada (texto + páginas como imagen) / salida'],
       ];
       $('#kpisIa').innerHTML = kpis.map(([k, v, d]) => `<div class="kpi"><div class="k">${esc(k)}</div><div class="v">${esc(v)}</div><div class="d">${esc(d)}</div></div>`).join('');
-      $('#precioIa').textContent = `Costo calculado con ${data.precio.modelo}: US$ ${data.precio.entradaUsdMtok} por millón de tokens de entrada y US$ ${data.precio.salidaUsdMtok} de salida (se cambia en Parámetros). Es una estimación; la cifra oficial es la factura de AWS.`;
+      $('#precioIa').textContent = `Costo calculado con ${data.precio.modelo}: US$ ${data.precio.entradaUsdMtok} por millón de tokens de entrada y US$ ${data.precio.salidaUsdMtok} de salida (se cambia en Parámetros). Si falla, responde ${data.precio.respaldo} con su propio precio. Es una estimación; la cifra oficial es la factura de AWS.`;
       $('#tDia').innerHTML = data.porDia.map((d) => `<tr><td class="nowrap">${esc(d.dia)}</td><td class="num">${num(d.analizados)}</td><td class="num">${num(d.con_error)}</td><td class="num">${usd(d.costo_usd, 4)}</td><td class="num">${seg(d.ia_ms_promedio)}</td></tr>`).join('') || '<tr><td colspan="5" class="vacio">Sin análisis en el período</td></tr>';
       const estado = { OK: ['ok', 'Analizado'], ERROR: ['err', 'Error'], PENDIENTE: ['info', 'En cola'], NO_APLICA: ['neutro', 'No aplica'] };
       const origen = { OFERTA: 'Anexo del oferente', COTIZACION: 'Cotización', BASES: 'Bases' };

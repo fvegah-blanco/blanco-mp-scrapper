@@ -117,7 +117,9 @@ export class ExtraccionService {
 
   private async contactosDeTexto(documentoId: string, procesoCodigo: string, texto: string, duenoRut: string | null): Promise<number> {
     const ctx = { ...(await this.contexto(procesoCodigo)), duenoRut };
-    const encontrados = extraerContactos(texto, ctx);
+    // Las bases las escribe el comprador: un correo ahí que el regex atribuye al proveedor suele ser
+    // del organismo (casilla de facturas, otra oficina), así que no se guarda como del proveedor.
+    const encontrados = extraerContactos(texto, ctx).filter((c) => duenoRut || c.rol !== 'PROVEEDOR');
     await this.contactos.guardar(
       encontrados.map((c) => ({ ...c, fuente: 'DOCUMENTO' as const, procesoCodigo, documentoId })),
     );

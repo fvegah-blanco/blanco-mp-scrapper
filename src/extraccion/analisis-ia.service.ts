@@ -1,4 +1,5 @@
 import { createAmazonBedrock } from '@ai-sdk/amazon-bedrock';
+import { createBedrockMantle } from '@ai-sdk/amazon-bedrock/mantle';
 import { Injectable } from '@nestjs/common';
 import type { Documento, Prisma } from '@prisma/client';
 import { generateText, type LanguageModel, Output, type UserContent } from 'ai';
@@ -8,12 +9,20 @@ import { getErrorMessage } from '../common/errores';
 import { normalizarRut } from '../common/rut';
 import { ConfiguracionService } from '../configuracion/configuracion.service';
 import { StorageService } from '../documentos/storage.service';
-import { type ContactoReg, ContactosRepository, normalizarEmail } from '../ingesta/contactos.repository';
+import { type ContactoReg, ContactosRepository, normalizarEmail, normalizarTelefono } from '../ingesta/contactos.repository';
+import { DOMINIOS_PUBLICOS } from './contactos.extractor';
 import { PrismaService } from '../prisma/prisma.service';
 import { extension, TextoService } from './texto.service';
 
-/** Mismo modelo y región por defecto que el back office (libs/ai): Haiku 4.5 por Converse. */
-const MODELO_POR_DEFECTO = 'us.anthropic.claude-haiku-4-5-20251001-v1:0';
+/**
+ * Luna (el tier barato del back office, por Mantle) lee igual que Haiku 4.5 a ~27% del costo
+ * (comparado sobre 71 documentos, scripts/comparar-modelo.ts). Si Mantle falla —se cayó el
+ * 05-11-2026— el documento se reintenta con Haiku por Converse.
+ */
+const MODELO_POR_DEFECTO = 'openai.gpt-5.6-luna';
+const MODELO_RESPALDO_POR_DEFECTO = 'us.anthropic.claude-haiku-4-5-20251001-v1:0';
+export const modeloPrincipal = () => process.env.BEDROCK_MODEL ?? MODELO_POR_DEFECTO;
+export const modeloRespaldo = () => process.env.BEDROCK_MODEL_RESPALDO ?? MODELO_RESPALDO_POR_DEFECTO;
 const REGION_POR_DEFECTO = 'us-east-2';
 const MAX_CHARS_TEXTO = 8000;
 
@@ -57,8 +66,9 @@ Reglas:
  */
 @Injectable()
 export class AnalisisIaService {
-  private readonly modeloId = process.env.BEDROCK_MODEL ?? MODELO_POR_DEFECTO;
-  private modelo: LanguageModel | null = null;
+  readonly modeloId = modeloPrincipal();
+  readonly modeloRespaldoId = modeloRespaldo();
+  private readonly modelos = new Map<string, LanguageModel>();
 
   constructor(
     @InjectPinoLogger(AnalisisIaService.name) private readonly logger: PinoLogger,
@@ -74,8 +84,10 @@ export class AnalisisIaService {
     return Boolean(process.env.BEDROCK_AWS_ACCESS_KEY_ID || process.env.BEDROCK_USE_DEFAULT_CREDENTIALS === 'true');
   }
 
-  private obtenerModelo(): LanguageModel {
-    if (!this.modelo) {
+  /** `openai.*` va por Mantle (endpoint OpenAI-compatible de Bedrock); el resto por Converse, como en libs/ai. */
+  private obtenerModelo(id: string): LanguageModel {
+    let modelo = this.modelos.get(id);
+    if (!modelo) {
       const credenciales = process.env.BEDROCK_AWS_ACCESS_KEY_ID
         ? {
             accessKeyId: process.env.BEDROCK_AWS_ACCESS_KEY_ID,
@@ -83,13 +95,32 @@ export class AnalisisIaService {
             sessionToken: process.env.BEDROCK_AWS_SESSION_TOKEN,
           }
         : {};
-      const bedrock = createAmazonBedrock({
-        region: process.env.BEDROCK_AWS_REGION ?? process.env.BEDROCK_REGION ?? REGION_POR_DEFECTO,
-        ...credenciales,
-      });
-      this.modelo = bedrock(this.modeloId);
+      const region = process.env.BEDROCK_AWS_REGION ?? process.env.BEDROCK_REGION ?? REGION_POR_DEFECTO;
+      modelo = id.startsWith('openai.')
+        ? createBedrockMantle({ region, ...credenciales, baseURL: `https://bedrock-mantle.${region}.api.aws/openai/v1` }).responses(id)
+        : createAmazonBedrock({ region, ...credenciales })(id);
+      this.modelos.set(id, modelo);
     }
-    return this.modelo;
+    return modelo;
+  }
+
+  /** Llama al modelo principal; si falla la llamada, al de respaldo. Devuelve qué modelo respondió. */
+  private async leer(contenido: UserContent) {
+    const llamar = (id: string) =>
+      generateText({
+        model: this.obtenerModelo(id),
+        system: SISTEMA,
+        messages: [{ role: 'user', content: contenido }],
+        output: Output.object({ schema: esquemaAnexo }),
+        ...(/claude-haiku-4-5/.test(id) ? { providerOptions: { bedrock: { structuredOutputMode: 'outputFormat' } } } : {}),
+      }).then((r) => ({ output: r.output, usage: r.usage, modelo: id })); // output y usage son getters: no sirve el spread
+    try {
+      return await llamar(this.modeloId);
+    } catch (error) {
+      if (!this.modeloRespaldoId || this.modeloRespaldoId === this.modeloId) throw error;
+      this.logger.warn({ modelo: this.modeloId, error: getErrorMessage(error) }, 'Falló el modelo principal: se usa el de respaldo');
+      return llamar(this.modeloRespaldoId);
+    }
   }
 
   async procesarLote(): Promise<{ analizados: number; contactos: number; fallidos: number; omitido?: string }> {
@@ -123,33 +154,25 @@ export class AnalisisIaService {
         await this.prisma.documento.update({ where: { id: doc.id }, data: { analisisIaEstado: 'NO_APLICA', analizadoIaAt: new Date() } });
         return 0;
       }
-      const esHaiku = /claude-haiku-4-5/.test(this.modeloId);
-      const { output, usage } = await generateText({
-        model: this.obtenerModelo(),
-        system: SISTEMA,
-        messages: [{ role: 'user', content: contenido }],
-        output: Output.object({ schema: esquemaAnexo }),
-        maxOutputTokens: 1500,
-        temperature: 0,
-        maxRetries: 2,
-        // Haiku 4.5 en Converse necesita el output nativo (ver libs/ai/constants/models.ts del back office).
-        ...(esHaiku ? { providerOptions: { bedrock: { structuredOutputMode: 'outputFormat' } } } : {}),
-      });
+      const { output, usage, modelo } = await this.leer(contenido);
 
       const ms = Date.now() - inicio;
       const entrada = usage.inputTokens ?? 0;
       const salida = usage.outputTokens ?? 0;
-      const costo = (entrada * (await this.configuracion.get('bedrock.precio_entrada_usd_mtok')) + salida * (await this.configuracion.get('bedrock.precio_salida_usd_mtok'))) / 1_000_000;
+      const respaldo = modelo !== this.modeloId;
+      const precioEntrada = await this.configuracion.get(respaldo ? 'bedrock.precio_respaldo_entrada_usd_mtok' : 'bedrock.precio_entrada_usd_mtok');
+      const precioSalida = await this.configuracion.get(respaldo ? 'bedrock.precio_respaldo_salida_usd_mtok' : 'bedrock.precio_salida_usd_mtok');
+      const costo = (entrada * precioEntrada + salida * precioSalida) / 1_000_000;
       const paginas = Array.isArray(contenido) ? contenido.filter((p) => p.type === 'image').length : 0;
 
-      const regs = await this.contactosDe(doc, output);
+      const regs = await this.contactosDe(doc, output, modelo, await this.configuracion.get('bedrock.max_contactos_documento'));
       await this.contactos.guardar(regs);
       await this.prisma.documento.update({
         where: { id: doc.id },
         data: {
           analisisIaEstado: 'OK',
           analisisIa: output as unknown as Prisma.InputJsonValue,
-          analisisIaModelo: this.modeloId,
+          analisisIaModelo: modelo,
           analisisIaError: null,
           analizadoIaAt: new Date(),
           analisisIaMs: ms,
@@ -160,7 +183,7 @@ export class AnalisisIaService {
           ...(output.es_anexo_identificacion ? { esAnexoIdentificacion: true } : {}),
         },
       });
-      this.logger.info({ documento: doc.nombre, proceso: doc.procesoCodigo, contactos: regs.length, ms, entrada, salida, costoUsd: costo }, 'Documento analizado con Bedrock');
+      this.logger.info({ documento: doc.nombre, proceso: doc.procesoCodigo, modelo, contactos: regs.length, ms, entrada, salida, costoUsd: costo }, 'Documento analizado con Bedrock');
       return regs.length;
     } catch (error) {
       await this.prisma.documento.update({
@@ -200,14 +223,37 @@ export class AnalisisIaService {
    * Pasa la respuesta del modelo a contactos. Si el documento tiene texto y el
    * correo que devolvió el modelo no aparece en él, se baja la confianza: es la
    * forma barata de detectar una transcripción mala o inventada.
+   *
+   * Dos filtros por lo visto en la muestra de 20 procesos: un documento del
+   * proveedor que trae muchas personas es una lista de referencias (clientes,
+   * experiencia) y no sus contactos, así que de ahí solo queda el representante
+   * legal; y un "comprador" que aparece en un documento del proveedor solo vale
+   * con un correo institucional (sin correo, o con Gmail, suele ser el propio
+   * proveedor nombrado como solicitante en un informe).
    */
-  async contactosDe(doc: Documento, a: AnalisisAnexo): Promise<ContactoReg[]> {
+  async contactosDe(doc: Documento, a: AnalisisAnexo, modelo = this.modeloId, maxContactos = 6): Promise<ContactoReg[]> {
     const rutEmpresa = normalizarRut(a.rut_empresa);
     const proceso = await this.prisma.proceso.findUnique({ where: { codigo: doc.procesoCodigo }, select: { compradorRut: true } });
     const textoPlano = (doc.texto ?? '').toLowerCase().replace(/\s+/g, '');
     const hayTexto = textoPlano.length > 200;
 
-    return a.contactos.map((c) => {
+    const delOferente = a.contactos.filter((c) => c.rol !== 'comprador');
+    const esLista = delOferente.length > maxContactos;
+    const validos = a.contactos.filter((c) => {
+      if (c.rol === 'comprador') {
+        const email = normalizarEmail(c.email);
+        return Boolean(email) && !DOMINIOS_PUBLICOS.includes(email!.split('@')[1]);
+      }
+      if (esLista && c.rol !== 'representante_legal') return false;
+      // Sin correo ni teléfono solo sirve el representante legal del propio oferente: los
+      // certificados de terceros (laboratorio, distribuidor) traen otros nombres y otro RUT.
+      if (!normalizarEmail(c.email) && !normalizarTelefono(c.telefono)) {
+        return c.rol === 'representante_legal' && Boolean(doc.proveedorRut) && (normalizarRut(a.rut_empresa) ?? doc.proveedorRut) === doc.proveedorRut;
+      }
+      return true;
+    });
+
+    return validos.map((c) => {
       const esComprador = c.rol === 'comprador';
       const email = normalizarEmail(c.email);
       // Del oferente: el RUT que dice el documento; si no lo dice, el dueño del documento.
@@ -227,7 +273,7 @@ export class AnalisisIaService {
         fuente: 'DOCUMENTO_IA',
         procesoCodigo: doc.procesoCodigo,
         documentoId: doc.id,
-        evidencia: `Bedrock (${this.modeloId}) sobre "${doc.nombre}"${a.razon_social ? ` · ${a.razon_social}` : ''}`,
+        evidencia: `Bedrock (${modelo}) sobre "${doc.nombre}"${a.razon_social ? ` · ${a.razon_social}` : ''}`,
         confianza: Math.max(0.1, Number(confianza.toFixed(2))),
       };
     });

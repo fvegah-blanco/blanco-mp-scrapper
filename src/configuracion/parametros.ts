@@ -108,13 +108,25 @@ export const PARAMETROS = {
     valor: 4,
     descripcion: 'Páginas de cada PDF que se mandan como imagen al modelo (el Anexo N°1 rara vez pasa de 2).',
   },
+  'bedrock.max_contactos_documento': {
+    valor: 6,
+    descripcion: 'Si un documento del proveedor trae más personas que esto, es una lista de referencias (clientes, experiencia): solo se guarda el representante legal.',
+  },
   'bedrock.precio_entrada_usd_mtok': {
-    valor: 1,
-    descripcion: 'USD por millón de tokens de entrada del modelo (Haiku 4.5: 1). Confirmar contra la tabla de Bedrock: es el que usa el costo por documento.',
+    valor: 0.22,
+    descripcion: 'USD por millón de tokens de entrada del modelo principal (BEDROCK_MODEL; Luna: 0,22). Confirmar contra la tabla de Bedrock: es el que usa el costo por documento.',
   },
   'bedrock.precio_salida_usd_mtok': {
+    valor: 1.32,
+    descripcion: 'USD por millón de tokens de salida del modelo principal (Luna: 1,32; incluye los de razonamiento).',
+  },
+  'bedrock.precio_respaldo_entrada_usd_mtok': {
+    valor: 1,
+    descripcion: 'USD por millón de tokens de entrada del modelo de respaldo (BEDROCK_MODEL_RESPALDO; Haiku 4.5: 1), usado si falla el principal.',
+  },
+  'bedrock.precio_respaldo_salida_usd_mtok': {
     valor: 5,
-    descripcion: 'USD por millón de tokens de salida del modelo (Haiku 4.5: 5).',
+    descripcion: 'USD por millón de tokens de salida del modelo de respaldo (Haiku 4.5: 5).',
   },
   'ia.dolar_clp': {
     valor: 950,

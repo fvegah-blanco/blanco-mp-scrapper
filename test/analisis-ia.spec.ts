@@ -41,4 +41,38 @@ describe('contactos desde la respuesta de Bedrock', () => {
     const [c] = await servicio().contactosDe(doc(null), analisis);
     expect(c.confianza).toBe(0.9);
   });
+
+  it('de una lista de referencias solo guarda el representante legal', async () => {
+    const referencias = Array.from({ length: 8 }, (_, i) => ({ rol: 'contacto' as const, nombre: `Cliente ${i}`, cargo: '', telefono: '', email: `c${i}@municipio.cl`, rut: '' }));
+    const r = await servicio().contactosDe(doc(null), {
+      ...analisis,
+      contactos: [...referencias, { rol: 'representante_legal', nombre: 'DANIEL CERDA', cargo: '', telefono: '', email: '', rut: '16041260-7' }],
+    });
+    expect(r.map((c) => c.nombre)).toEqual(['DANIEL CERDA']);
+  });
+
+  it('descarta un comprador sin correo institucional', async () => {
+    const r = await servicio().contactosDe(doc(null), {
+      ...analisis,
+      contactos: [
+        { rol: 'comprador', nombre: 'DANIEL CERDA', cargo: '', telefono: '+56957218169', email: '', rut: '' },
+        { rol: 'comprador', nombre: 'Solicitante', cargo: '', telefono: '', email: 'unidad@gmail.com', rut: '' },
+        { rol: 'comprador', nombre: 'Ana', cargo: '', telefono: '', email: 'ana@redsalud.gob.cl', rut: '' },
+      ],
+    });
+    expect(r.map((c) => c.nombre)).toEqual(['Ana']);
+  });
+
+  it('sin correo ni teléfono guarda solo al representante legal del oferente', async () => {
+    const r = await servicio().contactosDe(doc(null), {
+      ...analisis,
+      contactos: [
+        { rol: 'representante_legal', nombre: 'Rep Propio', cargo: '', telefono: '', email: '', rut: '' },
+        { rol: 'contacto', nombre: 'Sin Datos', cargo: '', telefono: '', email: '', rut: '' },
+      ],
+    });
+    expect(r.map((c) => c.nombre)).toEqual(['Rep Propio']);
+    const tercero = await servicio().contactosDe(doc(null), { ...analisis, rut_empresa: '78.370.360-2', contactos: [{ rol: 'representante_legal', nombre: 'Lab Tercero', cargo: '', telefono: '', email: '', rut: '' }] });
+    expect(tercero).toEqual([]);
+  });
 });

@@ -29,7 +29,7 @@ const RE_TELEFONO = /(?:\+?\(?56\)?[\s.-]*)?(?:\(?\d{1,2}\)?[\s.-]*)?\d{3,4}[\s.
 const RE_RUT = /\b\d{1,2}\.?\d{3}\.?\d{3}-[\dkK]\b/g;
 
 const IGNORAR_DOMINIOS = ['mercadopublico.cl', 'chilecompra.cl', 'example.com', 'dominio.cl', 'correo.cl'];
-const DOMINIOS_PUBLICOS = ['gmail.com', 'hotmail.com', 'outlook.com', 'yahoo.com', 'yahoo.es', 'live.com', 'icloud.com', 'gmail.cl'];
+export const DOMINIOS_PUBLICOS = ['gmail.com', 'hotmail.com', 'outlook.com', 'yahoo.com', 'yahoo.es', 'live.com', 'icloud.com', 'gmail.cl'];
 
 const PALABRAS_PROVEEDOR = [
   'proveedor', 'oferente', 'contratista', 'adjudicatario', 'adjudicataria', 'representante legal', 'razón social del oferente',

@@ -31,8 +31,11 @@ export function normalizarTelefono(valor: string | null | undefined): string | n
   return `+${d}`;
 }
 
-export function claveContacto(rut: string | null, rol: string, email: string | null, telefono: string | null): string {
-  return `${rut ?? ''}|${rol}|${email ? email : `tel:${telefono ?? ''}`}`;
+export function claveContacto(rut: string | null, rol: string, email: string | null, telefono: string | null, nombre?: string | null): string {
+  if (email) return `${rut ?? ''}|${rol}|${email}`;
+  if (telefono) return `${rut ?? ''}|${rol}|tel:${telefono}`;
+  const n = (nombre ?? '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim();
+  return `${rut ?? ''}|${rol}|nombre:${n}`;
 }
 
 export function normalizarEmail(valor: string | null | undefined): string | null {
@@ -50,11 +53,13 @@ export class ContactosRepository {
     for (const r of regs) {
       const email = normalizarEmail(r.email);
       const telefono = normalizarTelefono(r.telefono);
-      if (!email && !telefono) continue;
-      // La persona se identifica por su correo (o su teléfono si no hay correo): así un dato que
-      // llega más completo después (con teléfono) completa la fila en vez de duplicarla.
-      const clave = claveContacto(r.rut, r.rol, email, telefono);
       const limpiar = (v?: string | null) => v?.replace(/\s+/g, ' ').trim().slice(0, 200) || null;
+      // Sin correo ni teléfono solo vale una persona con nombre leída de un documento (el
+      // representante legal del Anexo N°1 suele venir así): dice quién firma por la empresa.
+      if (!email && !telefono && !(r.fuente === 'DOCUMENTO_IA' && r.rut && limpiar(r.nombre))) continue;
+      // La persona se identifica por su correo (o su teléfono, o su nombre): así un dato que
+      // llega más completo después (con teléfono) completa la fila en vez de duplicarla.
+      const clave = claveContacto(r.rut, r.rol, email, telefono, limpiar(r.nombre));
       filas.set(clave, [
         clave, r.rut, r.rol, limpiar(r.nombre), limpiar(r.cargo), email, telefono, r.fuente,
         r.procesoCodigo ?? null, r.ordenCompraId ?? null, r.documentoId ?? null, r.evidencia?.slice(0, 500) ?? null, r.confianza,
