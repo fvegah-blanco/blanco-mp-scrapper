@@ -21,5 +21,5 @@ Estado al 12-11-2026. Relacionado: [seguridad](seguridad.md), [despliegue](despl
 | Sin integración continua | Tipos y pruebas dependen de quien sube el cambio | Flujo de CI con `typecheck` y `test` |
 | El panel es un HTML único sin build | Difícil de mantener si crece | Migrarlo a `backoffice-fe` |
 | Autenticación con una llave compartida | Sin usuarios ni roles | Sesión del back office |
-| Repositorio público en una cuenta personal | Código interno expuesto | Pasarlo a la organización y dejarlo privado |
+| El repositorio es público | Código interno expuesto; el historial trae nombres y correos reales en pruebas antiguas | Dejarlo privado |
 | Sin métricas ni alertas | Las fallas se ven solo en el historial de crons | Alertas a Slack por cron fallido |
