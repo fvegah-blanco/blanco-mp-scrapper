@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import * as cheerio from 'cheerio';
-import { fetchJsonMp, fetchMp } from '../common/http';
+import { fetchJsonMp, fetchMp, leerConTope } from '../common/http';
 import { SesionWeb } from './sesion-web';
 
 const ADJUNTOS_CA = 'https://adjunto.mercadopublico.cl/adjunto-compra-agil/v1/adjuntos-compra-agil';
@@ -11,8 +11,8 @@ export interface AdjuntoRemoto {
   idExterno: string;
   nombre: string;
   tipoAnexo: string | null;
-  /** Baja el archivo. Se llama dentro de la misma sesión en que se listó. */
-  descargar: () => Promise<ArchivoDescargado>;
+  /** Baja el archivo (hasta `maxBytes`). Se llama dentro de la misma sesión en que se listó. */
+  descargar: (maxBytes: number) => Promise<ArchivoDescargado>;
 }
 
 export interface ArchivoDescargado {
@@ -73,10 +73,10 @@ export class AdjuntosClient {
         idExterno: f.id,
         nombre: f.nombreArchivo ?? f.nombre ?? 'documento',
         tipoAnexo: 'Adjunto compra ágil',
-        descargar: async () => {
+        descargar: async (maxBytes) => {
           const res = await fetchMp(`${ADJUNTOS_CA}/descargar/${f.id}`, { headers: this.headersCa, timeoutMs: 120_000 });
           return {
-            contenido: Buffer.from(await res.arrayBuffer()),
+            contenido: await leerConTope(res, maxBytes),
             mime: res.headers.get('content-type'),
             nombre: nombreDeDisposition(res.headers.get('content-disposition')),
           };
@@ -96,10 +96,10 @@ export class AdjuntosClient {
         idExterno: `cotizacion#${proveedorRut}#${f.id}`,
         nombre: f.nombreArchivo ?? 'cotizacion',
         tipoAnexo: 'Cotización del proveedor',
-        descargar: async () => {
+        descargar: async (maxBytes) => {
           const res = await fetchMp(`${ADJUNTOS_CA}/descargar/${f.id}`, { headers: this.headersCa, timeoutMs: 120_000 });
           return {
-            contenido: Buffer.from(await res.arrayBuffer()),
+            contenido: await leerConTope(res, maxBytes),
             mime: res.headers.get('content-type'),
             nombre: nombreDeDisposition(res.headers.get('content-disposition')),
           };
@@ -112,14 +112,18 @@ export class AdjuntosClient {
     const { html: ficha, url: urlFicha } = await sesion.html(FICHA_LIC + encodeURIComponent(codigo));
     const $f = cheerio.load(ficha);
     const paginas = new Set<string>();
+    // Los enlaces salen del HTML de la ficha: solo se siguen los del propio portal.
+    const agregar = (u: URL) => {
+      if (u.protocol === 'https:' && /(^|\.)mercadopublico\.cl$/.test(u.hostname)) paginas.add(u.toString());
+    };
     $f('a[href*="VerAntecedentes.aspx"], input[onclick*="VerAntecedentes.aspx"]').each((_, el) => {
       const crudo = $f(el).attr('href') ?? $f(el).attr('onclick') ?? '';
       const m = crudo.match(/[^'"]*VerAntecedentes\.aspx\?enc=[^'"&]+/);
-      if (m) paginas.add(new URL(m[0].replace(/&amp;/g, '&'), urlFicha).toString());
+      if (m) agregar(new URL(m[0].replace(/&amp;/g, '&'), urlFicha));
     });
     // El HTML de MP a veces viene mal formado: respaldo por regex.
     for (const m of ficha.matchAll(/(?:\.\.\/)+Attachment\/VerAntecedentes\.aspx\?enc=[^'"&\s]+/g)) {
-      paginas.add(new URL(m[0], urlFicha).toString());
+      agregar(new URL(m[0], urlFicha));
     }
 
     const adjuntos: AdjuntoRemoto[] = [];
@@ -140,7 +144,7 @@ export class AdjuntosClient {
           idExterno: `${pagina}#${fila + 1}#${nombre}`.slice(0, 300),
           nombre,
           tipoAnexo: celdas[2] ?? celdas[1] ?? null,
-          descargar: async () => {
+          descargar: async (maxBytes) => {
             const cuerpo = new URLSearchParams({
               __VIEWSTATE: viewState,
               __VIEWSTATEGENERATOR: generador,
@@ -160,7 +164,7 @@ export class AdjuntosClient {
               throw new Error(`La descarga de ${nombre} devolvió HTML (sesión o postback inválido)`);
             }
             return {
-              contenido: Buffer.from(await res.arrayBuffer()),
+              contenido: await leerConTope(res, maxBytes),
               mime,
               nombre: nombreDeDisposition(res.headers.get('content-disposition')),
             };

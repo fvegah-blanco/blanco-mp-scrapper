@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import * as cheerio from 'cheerio';
 import { esAnexoIdentificacion } from '../common/anexo1';
+import { leerConTope } from '../common/http';
 import { normalizarRut } from '../common/rut';
 import type { AdjuntoRemoto } from './adjuntos.client';
 import { nombreDeDisposition } from './adjuntos.client';
@@ -105,7 +106,7 @@ export class OfertasClient {
       idExterno: `oferta#${oferente.rut}#${f.grupo}#${f.archivo}`.slice(0, 300),
       nombre: f.archivo,
       tipoAnexo: f.grupo,
-      descargar: async () => {
+      descargar: async (maxBytes) => {
         await pausa(opciones.pausaMs);
         const { res } = await sesion.pedir(f.url, {
           method: 'POST',
@@ -121,7 +122,7 @@ export class OfertasClient {
         let nombre = nombreDeDisposition(res.headers.get('content-disposition')) ?? f.archivo;
         // El header llega en UTF-8 leído como latin1 ("NÂº" → "Nº").
         if (/[ÂÃ]/.test(nombre)) nombre = Buffer.from(nombre, 'latin1').toString('utf8');
-        return { contenido: Buffer.from(await res.arrayBuffer()), mime, nombre };
+        return { contenido: await leerConTope(res, maxBytes), mime, nombre };
       },
     }));
   }

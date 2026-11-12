@@ -251,6 +251,8 @@
   const guardar = (k, v) => { try { localStorage.setItem(k, v); } catch {} };
   const leer = (k) => { try { return localStorage.getItem(k) ?? ''; } catch { return ''; } };
   const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  // Enlaces que vienen de datos ingeridos: solo http(s), nunca javascript: u otro esquema.
+  const url = (v) => /^https?:\/\//i.test(String(v ?? '')) ? esc(v) : '#';
   const num = (n) => n == null ? '—' : Number(n).toLocaleString('es-CL', { maximumFractionDigits: 0 });
   const fecha = (d) => d ? new Date(d).toLocaleString('es-CL', { dateStyle: 'short', timeStyle: 'short' }) : '—';
   const icono = (id) => `<svg class="i"><use href="#i-${id}"/></svg>`;
@@ -376,10 +378,10 @@
         const { data } = await api('/consultas/adjudicaciones?' + qs);
         const tono = { FICHA_COMPRA_AGIL: 'info', ORDEN_COMPRA: 'ok' };
         $('#tAdj').innerHTML = data.map((a) => `<tr>
-          <td><a class="nowrap" href="${esc(a.proceso_link)}" target="_blank" rel="noopener">${esc(a.proceso_codigo)}</a><span class="sub">${esc((a.proceso_nombre || '').slice(0, 70))}</span></td>
+          <td><a class="nowrap" href="${url(a.proceso_link)}" target="_blank" rel="noopener">${esc(a.proceso_codigo)}</a><span class="sub">${esc((a.proceso_nombre || '').slice(0, 70))}</span></td>
           <td>${esc(a.comprador_nombre || '—')}<span class="sub nowrap">${esc(a.comprador_rut || '')}</span></td>
           <td>${esc(a.proveedor_nombre || '—')}<span class="sub nowrap">${esc(a.proveedor_rut)}</span></td>
-          <td class="nowrap">${a.orden_compra_codigo ? `<a href="${esc(a.orden_compra_link)}" target="_blank" rel="noopener">${esc(a.orden_compra_codigo)}</a><span class="sub">${fecha(a.orden_compra_fecha_envio)}</span>` : '<span class="sub">Sin OC</span>'}</td>
+          <td class="nowrap">${a.orden_compra_codigo ? `<a href="${url(a.orden_compra_link)}" target="_blank" rel="noopener">${esc(a.orden_compra_codigo)}</a><span class="sub">${fecha(a.orden_compra_fecha_envio)}</span>` : '<span class="sub">Sin OC</span>'}</td>
           <td class="num">$ ${num(a.monto)}</td>
           <td>${badge(tono[a.origen] || 'neutro', a.origen.toLowerCase().replace(/_/g, ' '))}</td></tr>`).join('') || '<tr><td colspan="6" class="vacio">Sin adjudicaciones con ese filtro</td></tr>';
       };
@@ -400,7 +402,7 @@
       const origenContacto = (c) => {
         const o = c.origen;
         if (!o) return `<span class="sub" title="${esc(c.evidencia)}">${esc((c.evidencia || '').slice(0, 60))}</span>`;
-        const enlace = o.link ? `<a class="nowrap" href="${esc(o.link)}" target="_blank" rel="noopener">${esc(o.codigo)}</a>` : esc(o.codigo);
+        const enlace = o.link ? `<a class="nowrap" href="${url(o.link)}" target="_blank" rel="noopener">${esc(o.codigo)}</a>` : esc(o.codigo);
         if (o.tipo === 'OC') return `<span class="sub nowrap">OC ${enlace}</span>`;
         const queDoc = { OFERTA: 'anexo del oferente', COTIZACION: 'cotización', BASES: 'bases' }[o.documentoOrigen] || 'documento';
         return `<span class="sub">${esc(o.documento)} (${queDoc}) · ${enlace}</span>`;
@@ -525,7 +527,8 @@
     const ruta = vistas[rutaActual()] ? rutaActual() : 'resumen';
     document.querySelectorAll('.sb-item[data-ruta]').forEach((a) => { if (a.dataset.ruta === ruta) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
     const p = $('#pagina');
-    try { await vistas[ruta](p); } catch (err) { avisar(err.message, true); }
+    // Si se cambió de vista mientras cargaba, la respuesta tardía ya no tiene dónde pintarse: se ignora.
+    try { await vistas[ruta](p); } catch (err) { if (rutaActual() === ruta) avisar(err.message, true); }
   }
   document.addEventListener('click', (e) => {
     if (e.target.closest('[data-recargar]')) render();

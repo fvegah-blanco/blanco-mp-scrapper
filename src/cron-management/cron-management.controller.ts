@@ -1,9 +1,11 @@
 import {
   BadRequestException,
+  ConflictException,
   Body,
   Controller,
   DefaultValuePipe,
   Get,
+  HttpCode,
   Param,
   ParseIntPipe,
   Patch,
@@ -12,7 +14,7 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
-import { ApiHeader, ApiTags } from '@nestjs/swagger';
+import { ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { AdminKeyGuard, usuarioDe } from '../common/admin-key.guard';
 import {
@@ -31,18 +33,20 @@ function stripExecuteFn<T extends CronJobDefinition>(
 
 /** Mismo contrato que /cron-jobs del back office: listar, historial, disparar, pausar y cambiar horario. */
 @ApiTags('Cron Jobs')
-@ApiHeader({ name: 'x-admin-key', required: false })
+@ApiSecurity('x-admin-key')
 @UseGuards(AdminKeyGuard)
 @Controller('cron-jobs')
 export class CronManagementController {
   constructor(private readonly cronRegistry: CronRegistryService) {}
 
+  @ApiOperation({ summary: 'Lista los jobs con su horario, estado y última ejecución' })
   @Get()
   async listJobs() {
     const jobs = await this.cronRegistry.listJobs();
     return { success: true, data: jobs.map(stripExecuteFn) };
   }
 
+  @ApiOperation({ summary: 'Historial paginado de ejecuciones de un job' })
   @Get(':name/runs')
   getRunHistory(
     @Param('name') name: string,
@@ -52,16 +56,18 @@ export class CronManagementController {
     return this.cronRegistry.getRunHistory(name, { page, limit });
   }
 
-  /** Dispara el job sin esperar a que termine: los de ingesta tardan minutos. */
+  @ApiOperation({ summary: 'Dispara el job sin esperar a que termine (los de ingesta tardan minutos)' })
   @Post(':name/trigger')
+  @HttpCode(202)
   triggerJob(@Param('name') name: string) {
     if (this.cronRegistry.isRunning(name)) {
-      return { success: false, message: 'Job is already running' };
+      throw new ConflictException('El job ya está corriendo');
     }
     void this.cronRegistry.runJob(name);
     return { success: true, message: 'Job disparado; ver /cron-jobs/:name/runs' };
   }
 
+  @ApiOperation({ summary: 'Pausa, reanuda o cambia el horario de un job' })
   @Patch(':name')
   async updateJob(
     @Param('name') name: string,
@@ -70,7 +76,7 @@ export class CronManagementController {
   ) {
     if (dto.schedule && dto.resetSchedule) {
       throw new BadRequestException(
-        'Cannot set schedule and resetSchedule simultaneously',
+        'No se puede enviar schedule y resetSchedule a la vez',
       );
     }
 

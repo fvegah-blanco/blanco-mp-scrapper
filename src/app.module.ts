@@ -20,6 +20,8 @@ import { TiempoRealModule } from './tiempo-real/tiempo-real.module';
       pinoHttp: {
         level: process.env.LOG_LEVEL ?? 'info',
         autoLogging: false,
+        // La llave de administración y las cookies no se escriben en los logs.
+        redact: ['req.headers["x-admin-key"]', 'req.headers.authorization', 'req.headers.cookie'],
         transport: process.env.NODE_ENV === 'production' ? undefined : { target: 'pino-pretty', options: { singleLine: true } },
       },
     }),

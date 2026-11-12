@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { createHash } from 'crypto';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 import { getErrorMessage } from '../common/errores';
+import { ArchivoMuyGrandeError } from '../common/http';
 import { ConfiguracionService } from '../configuracion/configuracion.service';
 import { IngestaRepository } from '../ingesta/ingesta.repository';
 import { type AdjuntoRemoto, AdjuntosClient } from '../mercado-publico/adjuntos.client';
@@ -96,22 +97,26 @@ export class AdjuntosService {
       for (const a of remotos) {
         if (hechos.has(a.idExterno)) continue;
         try {
-          const archivo = await a.descargar();
+          const archivo = await a.descargar(maxBytes);
           const nombre = archivo.nombre ?? a.nombre;
           const base = {
             procesoCodigo: codigo, idExterno: a.idExterno, nombre, tipoAnexo: a.tipoAnexo, mime: archivo.mime, tamanoBytes: archivo.contenido.length,
             origen: a.origen ?? 'BASES', proveedorRut: a.proveedorRut ?? null,
           };
-          if (archivo.contenido.length > maxBytes) {
-            await this.guardarDocumento({ ...base, estado: 'OMITIDO', error: `Pesa ${Math.round(archivo.contenido.length / 1048576)} MB` });
-            continue;
-          }
           const sha256 = createHash('sha256').update(archivo.contenido).digest('hex');
           const carpeta = a.proveedorRut ? `procesos/${codigo}/oferentes/${a.proveedorRut}` : `procesos/${codigo}`;
           const ruta = await this.storage.guardar(`${carpeta}/${sha256.slice(0, 12)}_${nombreSeguro(nombre)}`, archivo.contenido, archivo.mime);
           await this.guardarDocumento({ ...base, sha256, rutaAlmacen: ruta, estado: 'DESCARGADO', descargadoAt: new Date(), error: null });
           nuevos++;
         } catch (error) {
+          if (error instanceof ArchivoMuyGrandeError) {
+            // No se baja completo: queda registrado como omitido y no se reintenta.
+            await this.guardarDocumento({
+              procesoCodigo: codigo, idExterno: a.idExterno, nombre: a.nombre, tipoAnexo: a.tipoAnexo, estado: 'OMITIDO',
+              origen: a.origen ?? 'BASES', proveedorRut: a.proveedorRut ?? null, error: error.message,
+            });
+            continue;
+          }
           errores++;
           await this.guardarDocumento({
             procesoCodigo: codigo, idExterno: a.idExterno, nombre: a.nombre, tipoAnexo: a.tipoAnexo, estado: 'ERROR',

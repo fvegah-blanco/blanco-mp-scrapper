@@ -1,15 +1,17 @@
-import { Controller, DefaultValuePipe, Get, NotFoundException, Param, ParseIntPipe, Query, UseGuards } from '@nestjs/common';
-import { ApiHeader, ApiTags } from '@nestjs/swagger';
-import { Prisma, type RolContacto } from '@prisma/client';
+import { Controller, Get, NotFoundException, Param, Query, UseGuards } from '@nestjs/common';
+import { ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
+import { Prisma } from '@prisma/client';
 import { AdminKeyGuard } from '../common/admin-key.guard';
+import { CodigoMpPipe } from '../common/codigo-mp.pipe';
 import { normalizarRut } from '../common/rut';
 import { ConfiguracionService } from '../configuracion/configuracion.service';
 import { modeloPrincipal, modeloRespaldo } from '../extraccion/analisis-ia.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { AdjudicacionesQueryDto, ContactosQueryDto, GastoIaQueryDto } from './dto/consultas.dto';
 
 /** Lectura de lo ingerido: resumen, adjudicaciones, fichas de empresa y proceso, contactos. */
 @ApiTags('Consultas')
-@ApiHeader({ name: 'x-admin-key', required: false })
+@ApiSecurity('x-admin-key')
 @UseGuards(AdminKeyGuard)
 @Controller('consultas')
 export class ConsultasController {
@@ -22,9 +24,10 @@ export class ConsultasController {
    * Gasto y tiempos de la IA: totales y percentiles del período, gasto por día y
    * el detalle de cada documento (extracción + Bedrock, tokens, costo, contactos).
    */
+  @ApiOperation({ summary: 'Gasto y tiempos de la IA en el período' })
   @Get('ia')
-  async ia(@Query('dias', new DefaultValuePipe(30), ParseIntPipe) dias: number) {
-    const desde = new Date(Date.now() - Math.min(365, Math.max(1, dias)) * 86_400_000);
+  async ia(@Query() { dias }: GastoIaQueryDto) {
+    const desde = new Date(Date.now() - dias * 86_400_000);
     const [totales] = await this.prisma.$queryRaw<Array<Record<string, unknown>>>`
       SELECT
         count(*) FILTER (WHERE analisis_ia_estado = 'OK')::int AS analizados,
@@ -75,6 +78,7 @@ export class ConsultasController {
     };
   }
 
+  @ApiOperation({ summary: 'Conteos de lo ingerido: organismos, proveedores, procesos, OC, documentos y contactos' })
   @Get('resumen')
   async resumen() {
     const [organismos, proveedores, procesos, ordenes, ocAgSinProceso, adjudicaciones, documentos, contactos, ultimaOc] = await Promise.all([
@@ -94,28 +98,22 @@ export class ConsultasController {
     };
   }
 
-  /** Adjudicaciones con el enlace al proceso, el comprador, el proveedor y la OC. */
+  @ApiOperation({ summary: 'Adjudicaciones con el enlace al proceso, el comprador, el proveedor y la OC' })
   @Get('adjudicaciones')
-  async adjudicaciones(
-    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
-    @Query('limit', new DefaultValuePipe(50), ParseIntPipe) limit: number,
-    @Query('tipo') tipo?: string,
-    @Query('rut') rut?: string,
-    @Query('desde') desde?: string,
-  ) {
-    const lim = Math.min(200, Math.max(1, limit));
+  async adjudicaciones(@Query() { page, limit, tipo, rut, desde }: AdjudicacionesQueryDto) {
     const condiciones: Prisma.Sql[] = [Prisma.sql`TRUE`];
     if (tipo) condiciones.push(Prisma.sql`proceso_tipo::text = ${tipo}`);
     const r = normalizarRut(rut);
     if (r) condiciones.push(Prisma.sql`(proveedor_rut = ${r} OR comprador_rut = ${r})`);
-    if (desde) condiciones.push(Prisma.sql`detectada_at >= ${new Date(desde)}`);
+    if (desde) condiciones.push(Prisma.sql`detectada_at >= ${desde}`);
     const where = Prisma.join(condiciones, ' AND ');
     const data = await this.prisma.$queryRaw<unknown[]>`
       SELECT * FROM v_adjudicaciones WHERE ${where}
-      ORDER BY detectada_at DESC LIMIT ${lim} OFFSET ${(Math.max(1, page) - 1) * lim}`;
-    return { success: true, data, page, limit: lim };
+      ORDER BY detectada_at DESC LIMIT ${limit} OFFSET ${(page - 1) * limit}`;
+    return { success: true, data, page, limit };
   }
 
+  @ApiOperation({ summary: 'Ficha de una empresa: contactos, adjudicaciones y compras como organismo' })
   @Get('empresas/:rut')
   async empresa(@Param('rut') rutCrudo: string) {
     const rut = normalizarRut(rutCrudo);
@@ -129,9 +127,9 @@ export class ConsultasController {
     return { success: true, data: { empresa, contactos, adjudicaciones, comoComprador } };
   }
 
+  @ApiOperation({ summary: 'Ficha de un proceso: ofertas, adjudicaciones, documentos, OC y contactos' })
   @Get('procesos/:codigo')
-  async proceso(@Param('codigo') codigo: string) {
-    const c = codigo.toUpperCase();
+  async proceso(@Param('codigo', CodigoMpPipe) c: string) {
     const proceso = await this.prisma.proceso.findUnique({
       where: { codigo: c },
       include: {
@@ -148,22 +146,16 @@ export class ConsultasController {
     return { success: true, data: { proceso, ordenes, contactos } };
   }
 
+  @ApiOperation({ summary: 'Contactos con su origen verificable (la OC o el documento y su proceso)' })
   @Get('contactos')
-  async contactos(
-    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
-    @Query('limit', new DefaultValuePipe(50), ParseIntPipe) limit: number,
-    @Query('rol') rol?: RolContacto,
-    @Query('rut') rut?: string,
-    @Query('minConfianza') minConfianza?: string,
-  ) {
-    const lim = Math.min(200, Math.max(1, limit));
+  async contactos(@Query() { page, limit, rol, rut, minConfianza }: ContactosQueryDto) {
     const where: Prisma.ContactoWhereInput = {
       ...(rol ? { rol } : {}),
       ...(normalizarRut(rut) ? { rut: normalizarRut(rut) } : {}),
-      ...(minConfianza ? { confianza: { gte: Number(minConfianza) } } : {}),
+      ...(minConfianza !== undefined ? { confianza: { gte: minConfianza } } : {}),
     };
     const [contactos, total] = await Promise.all([
-      this.prisma.contacto.findMany({ where, orderBy: { ultimaVezVisto: 'desc' }, skip: (Math.max(1, page) - 1) * lim, take: lim }),
+      this.prisma.contacto.findMany({ where, orderBy: { ultimaVezVisto: 'desc' }, skip: (page - 1) * limit, take: limit }),
       this.prisma.contacto.count({ where }),
     ]);
     // Origen verificable de cada contacto: la OC (ficha pública) o el documento y su proceso.
@@ -187,6 +179,6 @@ export class ConsultasController {
             : null,
       };
     });
-    return { success: true, data, total, page, limit: lim };
+    return { success: true, data, total, page, limit };
   }
 }

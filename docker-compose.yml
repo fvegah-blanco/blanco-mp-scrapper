@@ -9,7 +9,7 @@ services:
       POSTGRES_PASSWORD: mp
       POSTGRES_DB: mp
     ports:
-      - '5440:5432'
+      - '127.0.0.1:5440:5432'
     volumes:
       - mp-db-data:/var/lib/postgresql/data
     healthcheck:
@@ -24,10 +24,12 @@ services:
       db:
         condition: service_healthy
     ports:
-      - '4500:4500'
+      - '127.0.0.1:4500:4500'
     environment:
       DATABASE_URL: postgresql://mp:mp@db:5432/mp
       PORT: 4500
+      # La imagen viene con NODE_ENV=production, que exige ADMIN_API_KEY. En local se corre en desarrollo.
+      NODE_ENV: ${NODE_ENV:-development}
       ADMIN_API_KEY: ${ADMIN_API_KEY:-}
       # En local los crons quedan apagados salvo que se pida lo contrario.
       CRONS_ENABLED: ${CRONS_ENABLED:-false}

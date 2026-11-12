@@ -38,7 +38,7 @@ export class ConfiguracionService {
   async set(clave: string, valor: unknown, updatedBy?: string) {
     if (!(clave in PARAMETROS)) throw new BadRequestException(`Parámetro desconocido: ${clave}`);
     const defecto = PARAMETROS[clave as ClaveParametro].valor;
-    if (typeof valor !== typeof defecto) {
+    if (typeof valor !== typeof defecto || (typeof valor === 'number' && !Number.isFinite(valor))) {
       throw new BadRequestException(`${clave} espera un ${typeof defecto}`);
     }
     await this.prisma.configuracion.upsert({
@@ -49,6 +49,8 @@ export class ConfiguracionService {
   }
 
   async restablecer(clave: string) {
+    // Solo parámetros: las marcas de agua internas (`marca.*`) comparten tabla y no se borran por la API.
+    if (!(clave in PARAMETROS)) throw new BadRequestException(`Parámetro desconocido: ${clave}`);
     await this.prisma.configuracion.deleteMany({ where: { clave } });
   }
 

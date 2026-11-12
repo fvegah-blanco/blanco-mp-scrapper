@@ -11,21 +11,21 @@ const doc = (texto: string | null, proveedorRut: string | null = '79895670-1') =
 
 const analisis: AnalisisAnexo = {
   es_anexo_identificacion: true,
-  razon_social: 'PV EQUIP S.A.',
+  razon_social: 'PROVEEDOR EJEMPLO S.A.',
   rut_empresa: '79.895.670-1',
   contactos: [
-    { rol: 'contacto', nombre: 'GIOVANI JORQUERA', cargo: 'REPRESENTANTE DE VENTAS', telefono: '998714229', email: 'giovani.jorquera@pvequip.cl', rut: '' },
-    { rol: 'otro', nombre: 'PV EQUIP S.A.', cargo: '', telefono: '223677800', email: 'clientes@pvequip.cl', rut: '' },
+    { rol: 'contacto', nombre: 'JUAN EJEMPLO', cargo: 'REPRESENTANTE DE VENTAS', telefono: '912345678', email: 'juan.ejemplo@proveedorejemplo.cl', rut: '' },
+    { rol: 'otro', nombre: 'PROVEEDOR EJEMPLO S.A.', cargo: '', telefono: '221234567', email: 'clientes@proveedorejemplo.cl', rut: '' },
     { rol: 'comprador', nombre: 'Ana', cargo: '', telefono: '', email: 'ana@hospital.cl', rut: '' },
   ],
 };
 
 describe('contactos desde la respuesta de Bedrock', () => {
   it('asigna rol, RUT y confianza', async () => {
-    const texto = 'giovani.jorquera@pvequip.cl clientes@pvequip.cl ana@hospital.cl '.repeat(10);
+    const texto = 'juan.ejemplo@proveedorejemplo.cl clientes@proveedorejemplo.cl ana@hospital.cl '.repeat(10);
     const r = await servicio().contactosDe(doc(texto), analisis);
     expect(r.map((c) => [c.rol, c.rut, c.confianza, c.nombre])).toEqual([
-      ['PROVEEDOR', '79895670-1', 0.9, 'GIOVANI JORQUERA'],
+      ['PROVEEDOR', '79895670-1', 0.9, 'JUAN EJEMPLO'],
       ['PROVEEDOR', '79895670-1', 0.7, null],
       ['COMPRADOR', '61102014-7', 0.8, 'Ana'],
     ]);
@@ -46,16 +46,16 @@ describe('contactos desde la respuesta de Bedrock', () => {
     const referencias = Array.from({ length: 8 }, (_, i) => ({ rol: 'contacto' as const, nombre: `Cliente ${i}`, cargo: '', telefono: '', email: `c${i}@municipio.cl`, rut: '' }));
     const r = await servicio().contactosDe(doc(null), {
       ...analisis,
-      contactos: [...referencias, { rol: 'representante_legal', nombre: 'DANIEL CERDA', cargo: '', telefono: '', email: '', rut: '16041260-7' }],
+      contactos: [...referencias, { rol: 'representante_legal', nombre: 'PEDRO EJEMPLO', cargo: '', telefono: '', email: '', rut: '11111111-1' }],
     });
-    expect(r.map((c) => c.nombre)).toEqual(['DANIEL CERDA']);
+    expect(r.map((c) => c.nombre)).toEqual(['PEDRO EJEMPLO']);
   });
 
   it('descarta un comprador sin correo institucional', async () => {
     const r = await servicio().contactosDe(doc(null), {
       ...analisis,
       contactos: [
-        { rol: 'comprador', nombre: 'DANIEL CERDA', cargo: '', telefono: '+56957218169', email: '', rut: '' },
+        { rol: 'comprador', nombre: 'PEDRO EJEMPLO', cargo: '', telefono: '+56912345678', email: '', rut: '' },
         { rol: 'comprador', nombre: 'Solicitante', cargo: '', telefono: '', email: 'unidad@gmail.com', rut: '' },
         { rol: 'comprador', nombre: 'Ana', cargo: '', telefono: '', email: 'ana@redsalud.gob.cl', rut: '' },
       ],

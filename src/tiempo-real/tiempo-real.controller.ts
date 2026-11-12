@@ -1,13 +1,15 @@
-import { Controller, NotFoundException, Param, Post, UseGuards } from '@nestjs/common';
-import { BuscadorClient } from '../mercado-publico/buscador.client';
-import { ApiHeader, ApiTags } from '@nestjs/swagger';
+import { Controller, HttpCode, NotFoundException, Param, Post, UseGuards } from '@nestjs/common';
+import { ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 import { AdminKeyGuard } from '../common/admin-key.guard';
+import { CodigoMpPipe } from '../common/codigo-mp.pipe';
+import { BuscadorClient } from '../mercado-publico/buscador.client';
 import { PrismaService } from '../prisma/prisma.service';
 import { FichasOcService } from './fichas-oc.service';
 import { MatchCompraAgilService } from './match-compra-agil.service';
 
+/** Acciones puntuales del flujo en tiempo real: lo mismo que hacen los crons, para un código. */
 @ApiTags('Tiempo real')
-@ApiHeader({ name: 'x-admin-key', required: false })
+@ApiSecurity('x-admin-key')
 @UseGuards(AdminKeyGuard)
 @Controller('tiempo-real')
 export class TiempoRealController {
@@ -18,9 +20,10 @@ export class TiempoRealController {
     private readonly buscador: BuscadorClient,
   ) {}
 
-  /** Relee la ficha de una compra ágil (cotizaciones, ganador, id de cada cotización). */
+  @ApiOperation({ summary: 'Relee la ficha de una compra ágil (cotizaciones, ganador, id de cada cotización)' })
   @Post('compras-agiles/:codigo/ficha')
-  async fichaCompraAgil(@Param('codigo') codigo: string) {
+  @HttpCode(200)
+  async fichaCompraAgil(@Param('codigo', CodigoMpPipe) codigo: string) {
     const ficha = await this.buscador.fichaCompraAgil(codigo);
     if (!ficha) throw new NotFoundException(`El buscador no tiene ficha para ${codigo}`);
     await this.match.guardarCompraAgil(ficha);
@@ -28,10 +31,11 @@ export class TiempoRealController {
     return { success: true, data: { codigo: ficha.codigo, estado: ficha.estado, ofertas } };
   }
 
-  /** Lee la ficha y busca el proceso de una OC puntual, ahora. */
+  @ApiOperation({ summary: 'Lee la ficha de una OC y busca su proceso, ahora' })
   @Post('ordenes/:codigo/cruzar')
-  async cruzar(@Param('codigo') codigo: string) {
-    const oc = await this.prisma.ordenCompra.findUnique({ where: { codigo: codigo.toUpperCase() } });
+  @HttpCode(200)
+  async cruzar(@Param('codigo', CodigoMpPipe) codigo: string) {
+    const oc = await this.prisma.ordenCompra.findUnique({ where: { codigo } });
     if (!oc) throw new NotFoundException(`OC ${codigo} no está en la base`);
     await this.prisma.ordenCompra.update({ where: { id: oc.id }, data: { fichaRevisadaAt: null, matchIntentos: 0 } });
     const fichas = await this.fichas.procesar([oc.id]);

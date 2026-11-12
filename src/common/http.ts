@@ -19,6 +19,40 @@ export class HttpError extends Error {
   }
 }
 
+/** El archivo pesa más que el tope: no se termina de bajar. */
+export class ArchivoMuyGrandeError extends Error {
+  constructor(readonly bytes: number, readonly tope: number) {
+    super(`Pesa más de ${Math.round(tope / 1048576)} MB`);
+  }
+}
+
+/**
+ * Lee el cuerpo de una respuesta sin pasar de `maxBytes`. Corta apenas se supera
+ * el tope (por content-length o contando), así un adjunto gigante no llena la memoria.
+ */
+export async function leerConTope(res: Response, maxBytes: number): Promise<Buffer> {
+  const declarado = Number(res.headers.get('content-length') ?? 0);
+  if (declarado > maxBytes) {
+    await res.body?.cancel();
+    throw new ArchivoMuyGrandeError(declarado, maxBytes);
+  }
+  if (!res.body) return Buffer.alloc(0);
+  const trozos: Uint8Array[] = [];
+  let total = 0;
+  const lector = res.body.getReader();
+  for (;;) {
+    const { done, value } = await lector.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > maxBytes) {
+      await lector.cancel();
+      throw new ArchivoMuyGrandeError(total, maxBytes);
+    }
+    trozos.push(value);
+  }
+  return Buffer.concat(trozos);
+}
+
 const esperar = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /**
