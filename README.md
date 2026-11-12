@@ -79,6 +79,16 @@ npx prisma migrate deploy
 npm run dev                      # http://localhost:4500 (panel) · /docs (Swagger) · /api/...
 ```
 
+O todo en contenedores (OrbStack/Docker), con los crons apagados por defecto y `./storage` y `./tmp` montados:
+
+```bash
+# Las credenciales de Bedrock se pasan desde el entorno; no se copian al repo.
+BEDROCK_AWS_ACCESS_KEY_ID=... BEDROCK_AWS_SECRET_ACCESS_KEY=... docker compose up -d --build
+```
+
+Los adjuntos en disco se guardan como `local://<clave>` relativa a `STORAGE_DIR`, así la misma base sirve en el host y en el
+contenedor.
+
 Con `CRONS_ENABLED=false` los crons no corren solos (igual se pueden disparar desde el panel). Para importar un CSV que ya bajaste:
 
 ```bash

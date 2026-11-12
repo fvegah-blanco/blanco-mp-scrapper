@@ -1,4 +1,5 @@
-# Postgres local para desarrollo. La app corre con `npm run dev` (puerto 4500).
+# Local en OrbStack/Docker: `docker compose up -d --build` levanta Postgres y la app (http://localhost:4500).
+# Las credenciales de Bedrock no van en el repo: se toman del entorno de quien levanta el compose.
 services:
   db:
     image: postgres:16-alpine
@@ -11,6 +12,35 @@ services:
       - '5440:5432'
     volumes:
       - mp-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U mp -d mp']
+      interval: 5s
+      retries: 10
+
+  app:
+    build: .
+    container_name: blanco-mp-app
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - '4500:4500'
+    environment:
+      DATABASE_URL: postgresql://mp:mp@db:5432/mp
+      PORT: 4500
+      ADMIN_API_KEY: ${ADMIN_API_KEY:-}
+      # En local los crons quedan apagados salvo que se pida lo contrario.
+      CRONS_ENABLED: ${CRONS_ENABLED:-false}
+      STORAGE_DIR: /app/storage
+      TMP_DIR: /app/tmp
+      BEDROCK_AWS_ACCESS_KEY_ID: ${BEDROCK_AWS_ACCESS_KEY_ID:-}
+      BEDROCK_AWS_SECRET_ACCESS_KEY: ${BEDROCK_AWS_SECRET_ACCESS_KEY:-}
+      BEDROCK_AWS_REGION: ${BEDROCK_AWS_REGION:-us-east-2}
+      BEDROCK_MODEL: ${BEDROCK_MODEL:-openai.gpt-5.6-luna}
+      BEDROCK_MODEL_RESPALDO: ${BEDROCK_MODEL_RESPALDO:-us.anthropic.claude-haiku-4-5-20251001-v1:0}
+    volumes:
+      - ./storage:/app/storage
+      - ./tmp:/app/tmp
 
 volumes:
   mp-db-data:

@@ -19,7 +19,10 @@ export class StorageService {
     return this.s3;
   }
 
-  /** Guarda y devuelve la ruta lógica (s3://bucket/key o file://ruta). */
+  /**
+   * Guarda y devuelve la ruta lógica: s3://bucket/key, o local://clave relativa a STORAGE_DIR
+   * (así la misma base sirve en el host y en el contenedor).
+   */
   async guardar(clave: string, contenido: Buffer, mime: string | null): Promise<string> {
     if (this.bucket) {
       const key = `${this.prefijo}/${clave}`;
@@ -29,7 +32,7 @@ export class StorageService {
     const ruta = join(this.dir, clave);
     await mkdir(dirname(ruta), { recursive: true });
     await writeFile(ruta, contenido);
-    return `file://${ruta}`;
+    return `local://${clave}`;
   }
 
   async leer(ruta: string): Promise<Buffer> {
@@ -38,6 +41,8 @@ export class StorageService {
       const r = await this.cliente().send(new GetObjectCommand({ Bucket: bucket, Key: resto.join('/') }));
       return Buffer.from(await r.Body!.transformToByteArray());
     }
+    if (ruta.startsWith('local://')) return readFile(join(this.dir, ruta.slice('local://'.length)));
+    // Rutas antiguas: absolutas con file://.
     return readFile(ruta.replace(/^file:\/\//, ''));
   }
 }
